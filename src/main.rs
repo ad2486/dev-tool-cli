@@ -1,68 +1,23 @@
+mod cli;
+use crate::cli::Cli;
 use clap::Parser;
-use clap::Subcommand;
-use std::path::PathBuf;
-
-/// Configure development environments consistently and reproducibly
-#[derive(Parser, Debug)]
-#[command(name = "dev", version, about)]
-struct Cli {
-    /// Show commands that would run, without executing them
-    #[arg(long, global = true)]
-    dry_run: bool,
-    /// Skip interactive confirmation (for scripts)
-    #[arg(short, long, global = true)]
-    yes: bool,
-    /// Use an alternate configuration file
-    #[arg(long, global = true)]
-    config: Option<PathBuf>,
-    /// Decrease log verbosity
-    #[arg(short, long, global = true)]
-    quiet: bool,
-    /// Increase log verbosity
-    #[arg(short, long, global = true, action = clap::ArgAction::Count)]
-    verbose: u8,
-    #[command(subcommand)]
-    command: Commands,
-}
-
-#[derive(Subcommand, Debug)]
-enum Commands {
-    /// Install a language and its standard tools
-    Install {
-        /// Language identifier (e.g. python, rust)
-        language: String,
-    },
-    /// Scaffold a project for a language
-    Init {
-        /// Language identifier (e.g. python, rust)
-        language: String,
-    },
-    /// Diagnose the environment and standard tools
-    Doctor,
-    /// Read or write user configuration
-    Config {
-        #[command(subcommand)]
-        action: ConfigAction,
-    },
-}
-
-#[derive(Subcommand, Debug)]
-enum ConfigAction {
-    /// Read a configuration value
-    Get {
-        /// Key to read; omit to list all
-        key: Option<String>,
-    },
-    /// Write a configuration value
-    Set {
-        /// Configuration key
-        key: String,
-        /// Value to store
-        value: String,
-    },
-}
+use env_logger::Builder;
+use log::LevelFilter;
 
 fn main() {
     let cli: Cli = Cli::parse();
-    println!("{:?}", cli)
+    let level: LevelFilter = level_handling(cli.verbose, cli.quiet);
+    Builder::new().filter_level(level).init();
+    log::error!("{:?}", cli)
+}
+
+fn level_handling(verbose: u8, quiet: bool) -> LevelFilter {
+    match (verbose, quiet) {
+        (_, true) => log::LevelFilter::Off,
+        (0, false) => log::LevelFilter::Error,
+        (1, false) => log::LevelFilter::Warn,
+        (2, false) => log::LevelFilter::Info,
+        (3, false) => log::LevelFilter::Debug,
+        (_, false) => log::LevelFilter::Debug,
+    }
 }
