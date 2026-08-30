@@ -1,6 +1,6 @@
-use std::path::{ Path, PathBuf };
-
-use crate::errors::{ Category, ErrorCategory };
+use crate::errors::{Category, ErrorCategory};
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 pub type ConfigTable = toml::Table;
 
@@ -12,6 +12,10 @@ pub enum ConfigError {
     Io(std::io::Error),
     #[error("Could not determine the system config directory")]
     NoConfigDir,
+    #[error("Invalid value type for key: {0}")]
+    InvalidValue(String),
+    #[error("Unknown key: {0}")]
+    UnknownKey(String),
 }
 
 impl ErrorCategory for ConfigError {
@@ -20,6 +24,8 @@ impl ErrorCategory for ConfigError {
             Self::Invalid(_) => Category::User,
             Self::Io(_) => Category::Environment,
             Self::NoConfigDir => Category::Environment,
+            Self::InvalidValue(_) => Category::User,
+            Self::UnknownKey(_) => Category::User,
         }
     }
 }
@@ -40,6 +46,62 @@ pub fn load(path: &Path) -> Result<ConfigTable, ConfigError> {
     content.parse::<ConfigTable>().map_err(ConfigError::Invalid)
 }
 
-// Ok(conteudo) → seguir com o conteúdo (é uma String)
-// Err de "não existe" → não é erro, quer sair da função inteira com Ok(ConfigTable::new())
-// Err de qualquer outra coisa → sair da função com Err(ConfigError::Io(...))
+pub fn resolve(
+    config: &ConfigTable,
+    provider_name: &str,
+    defaults: &HashMap<String, String>,
+) -> Result<HashMap<String, String>, ConfigError> {
+    let mut result = defaults.clone();
+    let section = config.get(provider_name).and_then(|valor| valor.as_table());
+    if let Some(secao) = section {
+        for (key, value) in secao {
+            if defaults.contains_key(key) {
+                let str_value = value
+                    .as_str()
+                    .ok_or(ConfigError::InvalidValue(key.clone()))?;
+                result.insert(key.clone(), str_value.to_string());
+            } else {
+                return Err(ConfigError::UnknownKey(key.clone()));
+            }
+        }
+    }
+    Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn user_config_overrides_manifest_default() {
+        let config: ConfigTable = r#"
+            [python]
+            formatter = "black"
+        "#
+        .parse()
+        .unwrap();
+
+        let mut defaults = HashMap::new();
+        defaults.insert("formatter".to_string(), "ruff".to_string());
+        defaults.insert("linter".to_string(), "ruff".to_string());
+        let result = resolve(&config, "python", &defaults).unwrap();
+
+        assert_eq!(result.get("formatter"), Some(&"black".to_string()));
+        assert_eq!(result.get("linter"), Some(&"ruff".to_string()));
+    }
+
+    #[test]
+    fn unknown_key_returns_error() {
+        let config: ConfigTable = r#"
+            [python]
+            formattr = "black"
+        "#
+        .parse()
+        .unwrap();
+        let mut defaults = HashMap::new();
+        defaults.insert("formatter".to_string(), "ruff".to_string());
+        let result = resolve(&config, "python", &defaults);
+
+        assert!(matches!(result, Err(ConfigError::UnknownKey(_))));
+    }
+}
