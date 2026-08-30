@@ -8,13 +8,13 @@ use std::path::PathBuf;
 pub struct Cli {
     /// Show commands that would run, without executing them
     #[arg(long, global = true)]
-    dry_run: bool,
+    pub dry_run: bool,
     /// Skip interactive confirmation (for scripts)
     #[arg(short, long, global = true)]
-    yes: bool,
+    pub yes: bool,
     /// Use an alternate configuration file
     #[arg(long, global = true)]
-    config: Option<PathBuf>,
+    pub config: Option<PathBuf>,
     /// Decrease log verbosity
     #[arg(short, long, global = true)]
     pub quiet: bool,

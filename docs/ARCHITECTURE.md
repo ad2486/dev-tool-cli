@@ -89,11 +89,14 @@ Funções:
 * resolver a configuração efetiva de cada Provider (config do usuário + defaults do manifest)
 * disponibilizar configurações aos Providers (via `InstallContext`)
 
-Exemplo:
+O caminho do `config.toml` segue a convenção nativa de cada SO, resolvida via crate `directories` (`ProjectDirs::config_dir()`), e não um caminho fixo:
 
 ```
-~/.config/dev/config.toml
+Linux:  ~/.config/dev/config.toml
+macOS:  ~/Library/Application Support/dev/config.toml
 ```
+
+**Por quê caminho idiomático por SO:** `~/.config` é convenção XDG do Linux; o macOS tem a sua própria (`Application Support`) e não segue XDG. Fixar um único caminho estilo Linux em todas as plataformas surpreenderia usuários de macOS. A flag global `--config` permite sobrescrever o caminho manualmente em qualquer SO.
 
 ```toml
 [python]

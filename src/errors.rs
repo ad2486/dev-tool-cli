@@ -1,4 +1,4 @@
-use crate::errors::ExempleError::{AbsentDependency, Bug, CommandFailed, Invalid};
+use crate::errors::ExempleError::{ AbsentDependency, Bug, CommandFailed, Invalid };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Category {
@@ -9,7 +9,7 @@ pub enum Category {
 }
 
 impl Category {
-    pub fn exit_code(&self) -> i32 { 
+    pub fn exit_code(&self) -> i32 {
         match self {
             Category::User => 2,
             Category::Environment => 3,
@@ -41,7 +41,7 @@ impl ErrorCategory for ExempleError {
             Invalid(_) => Category::User,
             AbsentDependency => Category::Environment,
             CommandFailed => Category::Tool,
-            Bug => Category::Internal
+            Bug => Category::Internal,
         }
     }
 }
