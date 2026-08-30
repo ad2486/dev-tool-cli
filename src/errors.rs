@@ -1,4 +1,4 @@
-use crate::errors::ExempleError::{ AbsentDependency, Bug, CommandFailed, Invalid };
+use crate::errors::ExempleError::{AbsentDependency, Bug, CommandFailed, Invalid};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Category {

@@ -1,12 +1,12 @@
 mod cli;
 mod config;
+mod core;
 mod errors;
 mod providers;
-mod core;
 
 use crate::{
     cli::Cli,
-    errors::{ Category, ErrorCategory },
+    errors::{Category, ErrorCategory},
 };
 use clap::Parser;
 use env_logger::Builder;
@@ -45,8 +45,8 @@ fn test_operation() -> Result<(), crate::errors::ExempleError> {
 
 fn run(cli: Cli) -> anyhow::Result<()> {
     let path = match cli.config {
-        Some(p)=> p,
-        None => config::default_path()?
+        Some(p) => p,
+        None => config::default_path()?,
     };
     let table = config::load(&path)?;
     log::info!("{:?}", table);
