@@ -1,6 +1,6 @@
 mod manifest;
 use anyhow::Result;
-use manifest::Manifest;
+pub use manifest::Manifest;
 pub struct InstallContext;
 pub struct Report;
 pub struct InitOpts;
