@@ -3,6 +3,7 @@ mod config;
 mod core;
 mod errors;
 mod providers;
+mod os;
 
 use crate::{
     cli::Cli,
