@@ -7,7 +7,7 @@ pub struct Registry {
 }
 
 impl Registry {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             providers: HashMap::new(),
         }

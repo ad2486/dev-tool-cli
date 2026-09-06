@@ -1,8 +1,8 @@
 mod manifest;
+use crate::os::{CommandRunner, OsAdapter};
 use anyhow::Result;
-use std::{collections::HashMap, rc::Rc};
-use crate::os::{OsAdapter, CommandRunner};
 pub use manifest::Manifest;
+use std::{collections::HashMap, rc::Rc};
 pub struct InstallContext {
     pub config: HashMap<String, String>,
     pub os_adapter: Rc<dyn OsAdapter>,

@@ -336,20 +336,39 @@ Os Providers nunca executam comandos diretamente; toda interação com o sistema
 
 O `CommandRunner` é a costura (seam) de mais baixo nível da arquitetura: o **único** ponto do código autorizado a spawnar processos.
 
-Interface conceitual:
+Interface:
 
 ```rust
 trait CommandRunner {
-    fn execute(&self, cmd: &Command) -> Result<ExitStatus>;  // roda herdando stdio
+    fn execute(&self, cmd: &Command) -> Result<(), OsError>;    // roda herdando stdio
 
-    fn capture(&self, cmd: &Command) -> Result<Output>;      // roda capturando stdout/stderr
+    fn capture(&self, cmd: &Command) -> Result<Output, OsError>; // roda capturando stdout/stderr
 }
 ```
+
+`Command` e `Output` são tipos próprios do módulo `os`, não os da biblioteca padrão.
+
+**Por quê tipos próprios:** os três modos abaixo não apenas executam — o dry-run **imprime** o comando e o recording **grava e compara** comandos em teste. O `std::process::Command` é um builder feito para executar, não para inspecionar: não é `Clone` nem `PartialEq`. E `std::process::ExitStatus` não tem construtor portável, então o dry-run não teria como fabricar um resultado de sucesso sem processo real. Um `Command { program, args }` próprio é trivial de imprimir, clonar e comparar; o runner real o converte para `std::process::Command` apenas na hora de spawnar.
+
+## Contratos de `execute` e `capture`
+
+Os dois métodos existem porque têm contratos opostos:
+
+* **`execute`** — "faça isto, tem que funcionar". Código de saída ≠ 0 é `OsError::CommandFailed` (categoria falha de ferramenta). Como a falha já virou erro e o stdout foi direto para o terminal, o sucesso não carrega informação: `Result<(), OsError>`.
+* **`capture`** — "rode isto e me diga o que aconteceu". O código de saída volta como **dado** dentro de `Output { code, stdout, stderr }`, para o chamador inspecionar; só a impossibilidade de executar (binário ausente, permissão) é erro.
+
+**Por quê essa divisão:** ações que devem funcionar (`install` rodando `brew install python`) não podem depender de o Provider lembrar de checar um código de retorno — esquecer seria falha silenciosa, e o `?` propaga sozinho. Já diagnósticos (`doctor` rodando `python --version`) precisam do código como valor, porque "falhou" ali é uma resposta legítima, não um erro.
 
 Modos de operação:
 
 * **real:** executa o processo no sistema.
-* **dry-run:** não executa; registra e imprime o comando que seria executado (flag global `--dry-run`).
+* **dry-run:** não executa **ações** (`execute`); registra e imprime o comando que seria executado (flag global `--dry-run`). As **inspeções** (`capture`) rodam normalmente.
+
+**Por quê o `capture` roda de verdade no dry-run:** `--dry-run` significa "não modifique o sistema", não "não leia o sistema". Como todo comando idempotente checa o estado antes de agir (ver Idempotência), deixar as checagens rodarem é o que permite ao dry-run responder "python 3.12 já instalado, pularia" em vez de chutar. Falsificar um `Output` vazio faria o Provider decidir com base em dado inventado, e a previsão mentiria.
+
+**Consequência — regra a respeitar nos Providers:** `capture` só recebe comandos sem efeito colateral (`python --version`, `brew list`); qualquer comando que modifica o sistema vai por `execute`. O compilador não impõe isso; os testes de Provider (com o runner de recording) é que verificam qual comando foi parar em cada método.
+
+**Pendente para o Epic 3:** os adapters podem melhorar o preview trocando o comando pelo modo de simulação nativo do gerenciador (`brew install -n`, `apt-get -s`), que resolve dependências de verdade e valida se o pacote existe. Isso é conhecimento específico de gerenciador, então vive no `OsAdapter`, não no runner — e é aditivo: ferramentas sem equivalente (`rustup`, `uv`) continuam caindo no log-and-skip acima.
 * **recording (testes):** fake que grava a sequência de comandos recebidos e retorna respostas programadas.
 
 **Por quê:** concentrar a execução de processos em uma única abstração entrega três recursos de uma vez só — (1) testes unitários com fakes, sem tocar no sistema real; (2) `--dry-run` global implementado em um único lugar, valendo para todos os comandos; (3) logging centralizado de tudo o que o `dev` executa. Sem essa costura, cada um desses recursos teria que ser reimplementado em cada Provider e Adapter.

@@ -2,12 +2,12 @@ mod cli;
 mod config;
 mod core;
 mod errors;
-mod providers;
 mod os;
+mod providers;
 
 use crate::{
     cli::Cli,
-    errors::{Category, ErrorCategory},
+    errors::{Category, ErrorCategory, ExempleError},
 };
 use clap::Parser;
 use env_logger::Builder;
@@ -21,9 +21,9 @@ fn main() {
     match run(cli) {
         Ok(()) => {}
         Err(e) => {
-            let categoria = match e.downcast_ref::<crate::errors::ExempleError>() {
+            let categoria = match e.downcast_ref::<ExempleError>() {
                 Some(erro_especifico) => erro_especifico.category(),
-                None => crate::errors::Category::Internal,
+                None => Category::Internal,
             };
             std::process::exit(categoria.exit_code())
         }

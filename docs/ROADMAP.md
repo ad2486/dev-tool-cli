@@ -72,6 +72,8 @@ Criar abstração `CommandRunner`: único ponto do código autorizado a spawnar 
 
 Implementar adapter apt (Linux) — MVP
 
+Incluir o modo de simulação nativo (`apt-get -s`) para o `--dry-run`: em vez de apenas registrar o comando, o adapter troca pelo equivalente simulado, que resolve dependências de verdade e valida se o pacote existe (ver "Pendente para o Epic 3" em ARCHITECTURE.md).
+
 ### DEV-022
 
 Implementar Windows Adapter (winget/scoop/choco) — pós-MVP
@@ -79,6 +81,8 @@ Implementar Windows Adapter (winget/scoop/choco) — pós-MVP
 ### DEV-023
 
 Implementar adapter Homebrew (macOS) — MVP
+
+Incluir o modo de simulação nativo (`brew install -n`) para o `--dry-run`, pelo mesmo motivo do DEV-021.
 
 ### DEV-024
 
