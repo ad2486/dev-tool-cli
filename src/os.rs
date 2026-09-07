@@ -1,6 +1,10 @@
 use crate::errors::{Category, ErrorCategory};
 use std::cell::RefCell;
-pub trait OsAdapter {}
+pub trait OsAdapter {
+    fn name(&self) -> &str;
+    fn install_package(&self, package: &str) -> Result<(), OsError>;
+    fn command_exists(&self, program: &str) -> Result<bool, OsError>;
+}
 pub trait CommandRunner {
     fn execute(&self, cmd: &Command) -> Result<(), OsError>;
     fn capture(&self, cmd: &Command) -> Result<Output, OsError>;
@@ -8,7 +12,7 @@ pub trait CommandRunner {
 
 #[derive(thiserror::Error, Debug)]
 pub enum OsError {
-    #[error("Command `{command}`, failed with exit code {code}")]
+    #[error("Command `{command}` failed with exit code {code}")]
     CommandFailed { command: String, code: i32 },
     #[error("Couldn't execute command `{program}`: {source}")]
     ExecutionFailed {

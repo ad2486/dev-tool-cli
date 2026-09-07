@@ -303,23 +303,29 @@ Camada responsável por abstrair diferenças entre sistemas operacionais e geren
 
 O Adapter **monta** os comandos de cada gerenciador (ex.: `apt install -y python3`) e delega a **execução** ao `CommandRunner`, recebido na construção do Adapter.
 
-Interface conceitual:
+Interface do MVP:
 
 ```rust
 trait OsAdapter {
-    fn install(...);
+    fn name(&self) -> &str;
 
-    fn uninstall(...);
+    fn install_package(&self, package: &str) -> Result<(), OsError>;
 
-    fn update(...);
-
-    fn command_exists(...);
-
-    fn detect_package_manager(...);
+    fn command_exists(&self, program: &str) -> Result<bool, OsError>;
 }
 ```
 
 O método `execute` não existe mais aqui: executar processos é responsabilidade exclusiva do `CommandRunner` (ver seção CommandRunner).
+
+**Por quê só três métodos:** `uninstall` e `update` são pós-MVP (ver ROADMAP) — declarar agora um método que nenhuma implementação exercita é abstração prematura, e a trait é aditiva por natureza: acrescentá-los depois não quebra nada.
+
+**Por quê `detect_package_manager` saiu da trait:** ele é circular como método — seria preciso já ter um Adapter para descobrir qual Adapter usar. A detecção é uma **função livre** do módulo `os` (DEV-025), executada uma única vez, e o seu resultado decide qual Adapter construir. Consequência: nenhum Adapter contém condicional de SO; o `BrewAdapter` só conhece brew, e é isso que mantém a adição de um gerenciador puramente aditiva.
+
+**Por quê `name()` existe:** quem usa o Adapter o enxerga como `Rc<dyn OsAdapter>` e não tem acesso ao tipo concreto. O `name()` devolve a chave do gerenciador (`"brew"`, `"apt"`) que o Provider usa para consultar o `[packages]` do manifest — é assim que o mesmo Provider resolve `python` no brew e `python3` no apt.
+
+**Por quê `command_exists` devolve `Result<bool, _>` e não `bool`:** "o programa não está instalado" (`false`) e "não foi possível executar a verificação" (erro) são estados diferentes; achatá-los faria o `doctor` reportar ausência onde houve falha.
+
+**Pendente (pós-MVP): fixação de versão.** O `install_package` recebe apenas o nome do pacote, sem versão. Cada gerenciador expressa versão de um jeito próprio (`python@3.12` no brew, outra sintaxe no apt) e o suporte é irregular. Para as linguagens do MVP, quem resolve versão bem são as ferramentas dedicadas (`uv`, `rustup`), não o gerenciador do sistema. Quando a fixação via gerenciador entrar, será um parâmetro adicional em `install_package`.
 
 Escopo:
 
@@ -328,7 +334,11 @@ Escopo:
 
 **Por quê o recorte:** Homebrew + apt cobrem os dois ambientes de desenvolvimento mais comuns do público-alvo com a menor superfície possível. A trait foi desenhada para que adicionar um gerenciador seja **aditivo** — nova implementação + uma entrada na detecção — sem tocar em Providers ou Core.
 
-Os Providers nunca executam comandos diretamente; toda interação com o sistema operacional passa pelo OS Adapter.
+Os Providers nunca executam comandos diretamente: toda execução passa pelo `CommandRunner`, que é o único ponto autorizado a spawnar processos. O que varia por SO ou gerenciador de pacotes passa **antes** pelo OS Adapter; comandos idênticos em todos os sistemas (`uv init`, `cargo init`) vão direto ao Runner.
+
+**Por quê o Provider fala com o Runner também, e não só com o Adapter:** o Adapter abstrai *gerenciadores de pacote*. Fazer `uv init` passar por ele exigiria um método genérico de "rode qualquer comando", o que transformaria o Adapter num proxy do Runner e apagaria a fronteira que ele existe para marcar. Uma indireção que não esconde variação alguma não é abstração — é só uma camada a mais para ler quando algo quebra.
+
+O critério é **por comando, não por ferramenta**: a mesma ferramenta pode ter um comando que varia por SO (instalar o `rustup`) e outro que não (usar o `rustup`).
 
 ---
 
