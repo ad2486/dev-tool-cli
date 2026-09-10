@@ -1,5 +1,7 @@
 use crate::errors::{Category, ErrorCategory};
 use std::cell::RefCell;
+use std::collections::VecDeque;
+pub mod brew;
 pub trait OsAdapter {
     fn name(&self) -> &str;
     fn install_package(&self, package: &str) -> Result<(), OsError>;
@@ -52,17 +54,23 @@ pub struct DryRunRunner;
 
 pub struct RecordingRunner {
     commands: RefCell<Vec<Command>>,
+    responses: RefCell<VecDeque<Output>>,
 }
 
 impl RecordingRunner {
     pub fn new() -> Self {
         Self {
             commands: RefCell::new(Vec::new()),
+            responses: RefCell::new(VecDeque::new()),
         }
     }
 
     pub fn commands(&self) -> Vec<Command> {
         self.commands.borrow().clone()
+    }
+
+    pub fn push_response(&self, response: Output) {
+        self.responses.borrow_mut().push_back(response);
     }
 }
 
@@ -139,11 +147,14 @@ impl CommandRunner for RecordingRunner {
 
     fn capture(&self, cmd: &Command) -> Result<Output, OsError> {
         self.commands.borrow_mut().push(cmd.clone());
-        Ok(Output {
-            code: 0,
-            stdout: String::new(),
-            stderr: String::new(),
-        })
+        match self.responses.borrow_mut().pop_front() {
+            Some(response) => Ok(response),
+            None => Ok(Output {
+                code: 0,
+                stdout: String::new(),
+                stderr: String::new(),
+            }),
+        }
     }
 }
 
@@ -152,7 +163,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn record_commands_inorder() {
+    fn records_commands_in_order() {
         let runner = RecordingRunner::new();
         let command_one = Command {
             program: "brew".to_string(),
