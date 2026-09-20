@@ -12,6 +12,19 @@ pub trait CommandRunner {
     fn capture(&self, cmd: &Command) -> Result<Output, OsError>;
 }
 
+pub fn command_exists(runner: &dyn CommandRunner, program: &str) -> Result<bool, OsError> {
+    let command = Command {
+        program: "sh".to_string(),
+        args: vec![
+            "-c".to_string(),
+            r#"command -v "$1""#.to_string(),
+            "sh".to_string(),
+            program.to_string(),
+        ],
+    };
+    Ok(runner.capture(&command)?.code == 0)
+}
+
 #[derive(thiserror::Error, Debug)]
 pub enum OsError {
     #[error("Command `{command}` failed with exit code {code}")]
@@ -213,5 +226,64 @@ mod tests {
         };
 
         assert_eq!(command.to_string().as_str(), "brew");
+    }
+
+    #[test]
+    fn command_exists_is_true_when_lookup_succeeds() {
+        let output = Output {
+            code: 0,
+            stdout: "".to_string(),
+            stderr: "".to_string(),
+        };
+        let runner = RecordingRunner::new();
+        runner.push_response(output);
+        let result = command_exists(&runner, "python").unwrap();
+        assert!(result);
+    }
+
+    #[test]
+    fn command_exists_is_false_when_lookup_fails() {
+        let output = Output {
+            code: 1,
+            stdout: "".to_string(),
+            stderr: "".to_string(),
+        };
+        let runner = RecordingRunner::new();
+        runner.push_response(output);
+        let result = command_exists(&runner, "python").unwrap();
+        assert!(!result);
+    }
+
+    #[test]
+    fn command_exists_builds_posix_lookup() {
+        let command = Command {
+            program: "sh".to_string(),
+            args: vec![
+                "-c".to_string(),
+                r#"command -v "$1""#.to_string(),
+                "sh".to_string(),
+                "python".to_string(),
+            ],
+        };
+        let runner = RecordingRunner::new();
+        command_exists(&runner, "python").unwrap();
+        let commands = runner.commands();
+
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0], command);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn posix_lookup_finds_an_installed_program() {
+        let result = command_exists(&RealRunner, "sh").unwrap();
+        assert!(result);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn posix_lookup_rejects_a_missing_program() {
+        let result = command_exists(&RealRunner, "holy-moly").unwrap(); // purposeful misspelling/nonexistent program
+        assert!(!result);
     }
 }

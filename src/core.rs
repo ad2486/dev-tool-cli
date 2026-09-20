@@ -23,8 +23,6 @@ impl Registry {
 
 #[cfg(test)]
 mod tests {
-    use std::result;
-
     use super::*;
     use crate::providers::{InitOpts, InstallContext, Manifest, Report};
 
