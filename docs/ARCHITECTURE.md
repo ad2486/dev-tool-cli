@@ -378,7 +378,15 @@ Modos de operação:
 
 **Consequência — regra a respeitar nos Providers:** `capture` só recebe comandos sem efeito colateral (`python --version`, `brew list`); qualquer comando que modifica o sistema vai por `execute`. O compilador não impõe isso; os testes de Provider (com o runner de recording) é que verificam qual comando foi parar em cada método.
 
-**Pendente para o Epic 3:** os adapters podem melhorar o preview trocando o comando pelo modo de simulação nativo do gerenciador (`brew install -n`, `apt-get -s`), que resolve dependências de verdade e valida se o pacote existe. Isso é conhecimento específico de gerenciador, então vive no `OsAdapter`, não no runner — e é aditivo: ferramentas sem equivalente (`rustup`, `uv`) continuam caindo no log-and-skip acima.
+**Simulação nativa nos adapters:** em dry-run, os adapters trocam o comando de instalação pelo modo de simulação nativo do gerenciador (`brew install -n`, `apt-get -s`), que resolve dependências de verdade e valida se o pacote existe. Isso é conhecimento específico de gerenciador, então vive no `OsAdapter`, não no runner — e é aditivo: ferramentas sem equivalente (`rustup`, `uv`) continuam caindo no log-and-skip acima.
+
+Como funciona:
+
+* o adapter recebe um `dry_run: bool` **na construção**, ao lado do handle do `CommandRunner`;
+* em dry-run, `install_package` monta a variante simulada e a envia por **`capture`**, não por `execute`. A simulação não tem efeito colateral, então respeita a regra acima — e é o único caminho possível, porque o `execute` do runner de dry-run não roda nada: por ele, a simulação seria apenas logada, nunca executada;
+* a saída da simulação é registrada no log, e um código de saída ≠ 0 vira `OsError::CommandFailed` — é assim que o dry-run passa a acusar um pacote inexistente antes da execução real.
+
+**Por quê a flag é passada ao adapter e não consultada no runner:** o adapter enxerga o runner apenas como `Rc<dyn CommandRunner>` e não deve ramificar conforme o tipo ou o modo dele — um método `is_dry_run()` na trait desfaria essa opacidade. Mover a escolha para quem chama (um `simulate_install` separado na trait) empurraria a ramificação para dentro de cada Provider. O custo aceito é a flag existir em dois lugares (runner e adapter); ambos são construídos a partir do mesmo `--dry-run`, no mesmo ponto de montagem.
 * **recording (testes):** fake que grava a sequência de comandos recebidos e retorna respostas programadas.
 
 **Por quê:** concentrar a execução de processos em uma única abstração entrega três recursos de uma vez só — (1) testes unitários com fakes, sem tocar no sistema real; (2) `--dry-run` global implementado em um único lugar, valendo para todos os comandos; (3) logging centralizado de tudo o que o `dev` executa. Sem essa costura, cada um desses recursos teria que ser reimplementado em cada Provider e Adapter.
