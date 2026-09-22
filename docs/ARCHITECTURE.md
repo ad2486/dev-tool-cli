@@ -334,6 +334,16 @@ Escopo:
 
 **Por quê o recorte:** Homebrew + apt cobrem os dois ambientes de desenvolvimento mais comuns do público-alvo com a menor superfície possível. A trait foi desenhada para que adicionar um gerenciador seja **aditivo** — nova implementação + uma entrada na detecção — sem tocar em Providers ou Core.
 
+**Privilégio (`sudo`):** o `AptAdapter` prefixa `sudo` no comando de instalação; o `BrewAdapter` nunca prefixa.
+
+**Por quê a decisão é de cada Adapter, e não do programa:** os dois gerenciadores têm posições opostas — o `apt-get install` exige root, enquanto o Homebrew **recusa** rodar como root. Não existe uma postura única de privilégio que sirva para o `dev` inteiro: rodar tudo como root quebraria o brew, e não rodar nada quebraria o apt. Como privilégio é conhecimento específico de gerenciador, ele vive onde já vive o resto desse conhecimento.
+
+Prefixar sempre (em vez de detectar se o processo já é root) foi escolhido porque `sudo` executado por root é uma passagem direta, sem efeito — a detecção custaria uma chamada extra para cobrir um caso que o prefixo já cobre. O caso que ela não cobre (sistema sem `sudo` instalado, típico de container rodando como root) produz um `ExecutionFailed` imediato e legível.
+
+O comando simulado do dry-run (`apt-get install -s`) **não** leva `sudo`: a simulação não precisa de root, e assim `--dry-run` nunca pede senha.
+
+**Por quê `apt-get` e não `apt`:** o próprio `apt` avisa que não tem interface de linha de comando estável e desaconselha o uso em scripts. O `apt-get` é a interface destinada a automação.
+
 Os Providers nunca executam comandos diretamente: toda execução passa pelo `CommandRunner`, que é o único ponto autorizado a spawnar processos. O que varia por SO ou gerenciador de pacotes passa **antes** pelo OS Adapter; comandos idênticos em todos os sistemas (`uv init`, `cargo init`) vão direto ao Runner.
 
 **Por quê o Provider fala com o Runner também, e não só com o Adapter:** o Adapter abstrai *gerenciadores de pacote*. Fazer `uv init` passar por ele exigiria um método genérico de "rode qualquer comando", o que transformaria o Adapter num proxy do Runner e apagaria a fronteira que ele existe para marcar. Uma indireção que não esconde variação alguma não é abstração — é só uma camada a mais para ler quando algo quebra.

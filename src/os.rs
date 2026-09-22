@@ -1,6 +1,7 @@
 use crate::errors::{Category, ErrorCategory};
 use std::cell::RefCell;
 use std::collections::VecDeque;
+pub mod apt;
 pub mod brew;
 pub trait OsAdapter {
     fn name(&self) -> &str;
