@@ -334,6 +334,14 @@ Escopo:
 
 **Por quê o recorte:** Homebrew + apt cobrem os dois ambientes de desenvolvimento mais comuns do público-alvo com a menor superfície possível. A trait foi desenhada para que adicionar um gerenciador seja **aditivo** — nova implementação + uma entrada na detecção — sem tocar em Providers ou Core.
 
+**Detecção:** a função livre `os::detect_adapter(runner, dry_run)` sonda os gerenciadores com `os::command_exists` e devolve o Adapter já construído (`Rc<dyn OsAdapter>`), ou `OsError::NoPackageManager` (categoria Environment) se nenhum existir.
+
+**Por quê devolver o Adapter pronto, e não o nome do gerenciador:** devolver um nome exigiria, em outro lugar, um `match` traduzindo nome → tipo — dois pontos para atualizar a cada gerenciador novo, e um deles pode ficar para trás sem o compilador notar, produzindo "detectei X mas não sei construí-lo" só em tempo de execução. Construindo ali mesmo, a sondagem e a construção ficam adjacentes e o compilador cobra as duas metades. O custo é a detecção conhecer os parâmetros de construção (`dry_run`); é acoplamento barato e visível na compilação, trocado por uma classe inteira de falha silenciosa. A identidade continua acessível pelo `name()` do Adapter, inclusive nos testes.
+
+**Ordem de sondagem: `apt-get` primeiro, depois `brew`.** Uma ordem única serve aos dois sistemas do MVP: no macOS o `apt-get` não existe e a busca cai no brew; no Linux o `apt-get` vence o Homebrew for Linux, que também pode estar presente. A precedência é do gerenciador nativo do sistema.
+
+**Por quê não existe detecção de sistema operacional (DEV-024 descartada):** o binário é compilado para um alvo específico, então o SO não é descoberto em tempo de execução — `std::env::consts::OS` já é uma constante. E o SO não é o que decide nada: quem decide é a presença do gerenciador, verificada diretamente. Uma detecção de SO seria uma camada a mais respondendo a uma pergunta que ninguém faz. `std::env::consts::OS` segue disponível para mensagens de diagnóstico do `doctor`.
+
 **Privilégio (`sudo`):** o `AptAdapter` prefixa `sudo` no comando de instalação; o `BrewAdapter` nunca prefixa.
 
 **Por quê a decisão é de cada Adapter, e não do programa:** os dois gerenciadores têm posições opostas — o `apt-get install` exige root, enquanto o Homebrew **recusa** rodar como root. Não existe uma postura única de privilégio que sirva para o `dev` inteiro: rodar tudo como root quebraria o brew, e não rodar nada quebraria o apt. Como privilégio é conhecimento específico de gerenciador, ele vive onde já vive o resto desse conhecimento.

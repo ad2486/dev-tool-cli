@@ -86,7 +86,7 @@ Incluir o modo de simulação nativo (`brew install -n`) para o `--dry-run`, pel
 
 ### DEV-024
 
-Detectar sistema operacional
+**Removida.** Não existe detecção de SO em tempo de execução: o binário é compilado por alvo e `std::env::consts::OS` já é uma constante. A escolha do Adapter vem da presença do gerenciador (DEV-025), não do sistema — ver "OS Adapter" em ARCHITECTURE.md.
 
 ### DEV-025
 

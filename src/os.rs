@@ -1,8 +1,14 @@
 use crate::errors::{Category, ErrorCategory};
+use apt::AptAdapter;
+use brew::BrewAdapter;
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::rc::Rc;
+
 pub mod apt;
 pub mod brew;
+
+const SUPPORTED_PACKAGE_MANAGERS: &str = "apt-get, brew";
 pub trait OsAdapter {
     fn name(&self) -> &str;
     fn install_package(&self, package: &str) -> Result<(), OsError>;
@@ -26,6 +32,19 @@ pub fn command_exists(runner: &dyn CommandRunner, program: &str) -> Result<bool,
     Ok(runner.capture(&command)?.code == 0)
 }
 
+pub fn detect_adapter(
+    runner: Rc<dyn CommandRunner>,
+    dry_run: bool,
+) -> Result<Rc<dyn OsAdapter>, OsError> {
+    if command_exists(&*runner, "apt-get")? {
+        return Ok(Rc::new(AptAdapter::new(runner, dry_run)));
+    }
+    if command_exists(&*runner, "brew")? {
+        return Ok(Rc::new(BrewAdapter::new(runner, dry_run)));
+    }
+    Err(OsError::NoPackageManager)
+}
+
 #[derive(thiserror::Error, Debug)]
 pub enum OsError {
     #[error("Command `{command}` failed with exit code {code}")]
@@ -37,6 +56,8 @@ pub enum OsError {
     },
     #[error("Command `{command}` was killed by a signal")]
     CommandKilled { command: String },
+    #[error("No supported package manager found (looked for{SUPPORTED_PACKAGE_MANAGERS})")]
+    NoPackageManager,
 }
 
 impl ErrorCategory for OsError {
@@ -45,6 +66,7 @@ impl ErrorCategory for OsError {
             Self::CommandFailed { .. } => Category::Tool,
             Self::ExecutionFailed { .. } => Category::Environment,
             Self::CommandKilled { .. } => Category::Tool,
+            Self::NoPackageManager => Category::Environment,
         }
     }
 }
@@ -286,5 +308,56 @@ mod tests {
     fn posix_lookup_rejects_a_missing_program() {
         let result = command_exists(&RealRunner, "holy-moly").unwrap(); // purposeful misspelling/nonexistent program
         assert!(!result);
+    }
+
+    #[test]
+    fn detect_adapter_picks_apt_when_available() {
+        let runner = Rc::new(RecordingRunner::new());
+        runner.push_response(Output {
+            code: 0,
+            stdout: "".to_string(),
+            stderr: "".to_string(),
+        });
+        let adapter = detect_adapter(runner.clone(), false).unwrap();
+        let commands = runner.commands();
+        assert_eq!(commands[0].args.last().unwrap(), "apt-get");
+        assert_eq!(adapter.name(), "apt");
+    }
+
+    #[test]
+    fn detect_adapter_falls_back_to_brew_without_apt() {
+        let runner = Rc::new(RecordingRunner::new());
+        runner.push_response(Output {
+            code: 1,
+            stdout: "".to_string(),
+            stderr: "".to_string(),
+        });
+        runner.push_response(Output {
+            code: 0,
+            stdout: "".to_string(),
+            stderr: "".to_string(),
+        });
+        let adapter = detect_adapter(runner.clone(), false).unwrap();
+        let commands = runner.commands();
+        assert_eq!(adapter.name(), "brew");
+        assert_eq!(commands.len(), 2);
+    }
+
+    #[test]
+    fn detect_adapter_errors_without_any_package_manager() {
+        let runner = Rc::new(RecordingRunner::new());
+        runner.push_response(Output {
+            code: 1,
+            stdout: "".to_string(),
+            stderr: "".to_string(),
+        });
+        runner.push_response(Output {
+            code: 1,
+            stdout: "".to_string(),
+            stderr: "".to_string(),
+        });
+        let result = detect_adapter(runner.clone(), false);
+
+        assert!(result.is_err());
     }
 }
