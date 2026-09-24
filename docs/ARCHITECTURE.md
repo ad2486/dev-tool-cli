@@ -439,6 +439,14 @@ Como funciona:
 
 ---
 
+# Saída do Programa
+
+O **resultado de um comando** vai para o stdout com `println!`; **diagnóstico** (progresso, comandos executados, avisos) vai pelo `log`, sujeito a `-v`/`-q`.
+
+**Por quê separar:** `-q` existe para calar o diagnóstico, não o produto. Se o relatório do `dev doctor` saísse pelo `log`, `dev doctor -q` não imprimiria nada — e um comando cuja única função é relatar ficaria sem propósito. A separação também é o que torna a saída utilizável em pipe, independente do nível de verbosidade escolhido.
+
+---
+
 # Tratamento de Erros
 
 ## Taxonomia

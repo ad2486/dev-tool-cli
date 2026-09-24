@@ -9,14 +9,12 @@ pub struct InstallContext {
     pub os_adapter: Rc<dyn OsAdapter>,
     pub command_runner: Rc<dyn CommandRunner>,
 }
-/// Outcome of a single check made by a Provider's `doctor`.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Status {
     Ok,
     Missing,
 }
 
-/// One thing `doctor` looked at — a tool, a binary, a file.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Check {
     pub name: String,
@@ -32,7 +30,6 @@ impl Check {
     }
 }
 
-/// Everything a Provider's `doctor` found out about its component.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Report {
     pub component: String,
@@ -47,7 +44,6 @@ impl Report {
         }
     }
 
-    /// True when every check passed.
     pub fn is_healthy(&self) -> bool {
         self.checks.iter().all(|check| check.status == Status::Ok)
     }

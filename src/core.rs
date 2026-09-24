@@ -1,23 +1,32 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::providers::Provider;
 
 pub struct Registry {
-    providers: HashMap<String, Box<dyn Provider>>,
+    providers: BTreeMap<String, Box<dyn Provider>>,
 }
 
 impl Registry {
     pub fn new() -> Self {
         Self {
-            providers: HashMap::new(),
+            providers: BTreeMap::new(),
         }
     }
-    fn register(&mut self, provider: Box<dyn Provider>) {
+
+    pub fn register(&mut self, provider: Box<dyn Provider>) {
         let name = provider.name().to_string();
         self.providers.insert(name, provider);
     }
-    fn get(&self, name: &str) -> Option<&dyn Provider> {
+
+    pub fn get(&self, name: &str) -> Option<&dyn Provider> {
         self.providers.get(name).map(|provider| provider.as_ref())
+    }
+
+    pub fn all(&self) -> Vec<&dyn Provider> {
+        self.providers
+            .values()
+            .map(|provider| provider.as_ref())
+            .collect()
     }
 }
 
@@ -74,5 +83,20 @@ mod tests {
         let result = registry.get("python");
 
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn all_returns_providers_ordered_by_name() {
+        let mut registry = Registry::new();
+        for name in ["rust", "docker", "python"] {
+            registry.register(Box::new(FakeProvider {
+                name: name.to_string(),
+                manifest: Manifest::default(),
+            }));
+        }
+
+        let names: Vec<&str> = registry.all().iter().map(|p| p.name()).collect();
+
+        assert_eq!(names, vec!["docker", "python", "rust"]);
     }
 }

@@ -1,3 +1,5 @@
+pub mod doctor;
+
 use clap::Parser;
 use clap::Subcommand;
 use std::path::PathBuf;
@@ -22,7 +24,7 @@ pub struct Cli {
     #[arg(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
     #[command(subcommand)]
-    command: Commands,
+    pub command: Commands,
 }
 
 #[derive(Subcommand, Debug)]

@@ -2,11 +2,6 @@ use super::manifest::{self, Manifest, ManifestError};
 use super::{Check, InitOpts, InstallContext, Provider, Report, Status};
 use anyhow::Result;
 
-/// Binaries `doctor` expects to find for a working Python setup.
-///
-/// These live here, and not in the manifest, because they vary by platform
-/// while the package names in `[packages]` do not — see "Providers" in
-/// ARCHITECTURE.md.
 const REQUIRED_BINARIES: &[&str] = &["python3", "uv"];
 
 pub struct PythonProvider {
@@ -60,7 +55,6 @@ mod tests {
     use std::collections::HashMap;
     use std::rc::Rc;
 
-    /// An OsAdapter whose answers the test decides up front.
     struct FakeAdapter {
         present: Vec<String>,
     }
