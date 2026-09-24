@@ -44,8 +44,8 @@ mod tests {
             Ok(())
         }
 
-        fn doctor(&self, ctx: &InstallContext) -> anyhow::Result<Report> {
-            Ok(Report)
+        fn doctor(&self, _ctx: &InstallContext) -> anyhow::Result<Report> {
+            Ok(Report::new(self.name.clone(), vec![]))
         }
 
         fn init(&self, _ctx: &InstallContext, _opts: InitOpts) -> anyhow::Result<()> {
