@@ -471,6 +471,12 @@ Sucesso = código 0.
 
 **Por quê dois níveis:** `thiserror` dá erros tipados que permitem match exaustivo e testes dentro da aplicação; `anyhow`/`miette` dá ergonomia e cadeia de contexto na fronteira, onde o erro vira texto para o usuário. Usar só `anyhow` em tudo esconderia as categorias (impossibilitando o mapeamento para códigos de saída); usar só `thiserror` em tudo tornaria a borda verbosa.
 
+Na borda, um enum `AppError` agrega os erros tipados dos módulos com `#[from]`, e o `main` mapeia sua categoria para o código de saída. A mensagem vai para o stderr.
+
+**Por quê um enum de borda em vez de tentar `downcast` no `main`:** com `#[from]`, propagar um erro de módulo novo **não compila** até que ele ganhe uma variante, e a variante não compila até receber uma categoria. Uma cadeia de `downcast` no `main` depende de alguém lembrar de estendê-la; quem esquecer não vê erro nenhum — o caso simplesmente cai no genérico e o programa passa a sair com o código errado, em silêncio. A variante `Other` (erros `anyhow`) mapeia para interno: um erro que ninguém classificou é, por definição, um descuido do `dev`.
+
+**`dev doctor` sai com 0 mesmo encontrando problemas.** O comando existe para relatar; se ele conseguiu relatar, ele teve sucesso, e o estado do ambiente é o **conteúdo** da resposta, não o sucesso dela. Código diferente de zero fica reservado para o diagnóstico em si falhar — nenhum gerenciador de pacotes encontrado, config inválida, verificação que não pôde ser executada.
+
 ## Idempotência
 
 Todo comando que modifica o sistema **deve ser idempotente**: rodar `dev install python` duas vezes seguidas produz o mesmo resultado, sem erro na segunda vez. Para isso, Providers verificam o estado atual (via `command_exists`, versão instalada) antes de agir.

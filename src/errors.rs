@@ -1,4 +1,6 @@
-use crate::errors::ExempleError::{AbsentDependency, Bug, CommandFailed, Invalid};
+use crate::config::ConfigError;
+use crate::os::OsError;
+use crate::providers::ManifestError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Category {
@@ -24,24 +26,24 @@ pub trait ErrorCategory {
 }
 
 #[derive(thiserror::Error, Debug)]
-pub enum ExempleError {
-    #[error("Something invalid {0}")]
-    Invalid(String),
-    #[error("Absent dependency")]
-    AbsentDependency,
-    #[error("External command failed")]
-    CommandFailed,
-    #[error("Impossible state")]
-    Bug,
+pub enum AppError {
+    #[error(transparent)]
+    Config(#[from] ConfigError),
+    #[error(transparent)]
+    Os(#[from] OsError),
+    #[error(transparent)]
+    Manifest(#[from] ManifestError),
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
 }
 
-impl ErrorCategory for ExempleError {
+impl ErrorCategory for AppError {
     fn category(&self) -> Category {
         match self {
-            Invalid(_) => Category::User,
-            AbsentDependency => Category::Environment,
-            CommandFailed => Category::Tool,
-            Bug => Category::Internal,
+            Self::Config(error) => error.category(),
+            Self::Os(error) => error.category(),
+            Self::Manifest(error) => error.category(),
+            Self::Other(_) => Category::Internal,
         }
     }
 }

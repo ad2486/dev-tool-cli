@@ -8,7 +8,7 @@ mod providers;
 use crate::{
     cli::{Cli, Commands},
     core::Registry,
-    errors::{Category, ErrorCategory, ExempleError},
+    errors::{AppError, ErrorCategory},
     os::{CommandRunner, DryRunRunner, RealRunner},
     providers::python::PythonProvider,
 };
@@ -22,16 +22,10 @@ fn main() {
     let level: LevelFilter = level_handling(cli.verbose, cli.quiet);
     Builder::new().filter_level(level).init();
 
-    match run(cli) {
-        Ok(()) => {}
-        Err(e) => {
-            let categoria = match e.downcast_ref::<ExempleError>() {
-                Some(erro_especifico) => erro_especifico.category(),
-                None => Category::Internal,
-            };
-            std::process::exit(categoria.exit_code())
-        }
-    };
+    if let Err(error) = run(cli) {
+        eprintln!("error: {error}");
+        std::process::exit(error.category().exit_code());
+    }
 }
 
 fn level_handling(verbose: u8, quiet: bool) -> LevelFilter {
@@ -44,7 +38,7 @@ fn level_handling(verbose: u8, quiet: bool) -> LevelFilter {
     }
 }
 
-fn run(cli: Cli) -> anyhow::Result<()> {
+fn run(cli: Cli) -> Result<(), AppError> {
     let path = match cli.config {
         Some(ref path) => path.clone(),
         None => config::default_path()?,
@@ -63,8 +57,12 @@ fn run(cli: Cli) -> anyhow::Result<()> {
 
     match cli.command {
         Commands::Doctor => cli::doctor::run(&registry, &config, os_adapter, command_runner),
-        Commands::Install { .. } => anyhow::bail!("`dev install` is not implemented yet"),
-        Commands::Init { .. } => anyhow::bail!("`dev init` is not implemented yet"),
-        Commands::Config { .. } => anyhow::bail!("`dev config` is not implemented yet"),
+        Commands::Install { .. } => {
+            Err(anyhow::anyhow!("`dev install` is not implemented yet").into())
+        }
+        Commands::Init { .. } => Err(anyhow::anyhow!("`dev init` is not implemented yet").into()),
+        Commands::Config { .. } => {
+            Err(anyhow::anyhow!("`dev config` is not implemented yet").into())
+        }
     }
 }

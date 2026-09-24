@@ -2,7 +2,7 @@ mod manifest;
 pub mod python;
 use crate::os::{CommandRunner, OsAdapter};
 use anyhow::Result;
-pub use manifest::Manifest;
+pub use manifest::{Manifest, ManifestError};
 use std::{collections::HashMap, rc::Rc};
 pub struct InstallContext {
     pub config: HashMap<String, String>,

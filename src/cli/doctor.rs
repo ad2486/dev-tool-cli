@@ -1,8 +1,8 @@
 use crate::config::{self, ConfigTable};
 use crate::core::Registry;
+use crate::errors::AppError;
 use crate::os::{CommandRunner, OsAdapter};
 use crate::providers::InstallContext;
-use anyhow::Result;
 use std::rc::Rc;
 
 pub fn run(
@@ -10,7 +10,7 @@ pub fn run(
     config: &ConfigTable,
     os_adapter: Rc<dyn OsAdapter>,
     command_runner: Rc<dyn CommandRunner>,
-) -> Result<()> {
+) -> Result<(), AppError> {
     for provider in registry.all() {
         let defaults = provider.manifest().tools.clone();
         let resolved = config::resolve(config, provider.name(), &defaults)?;
