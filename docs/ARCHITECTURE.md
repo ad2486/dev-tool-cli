@@ -118,6 +118,34 @@ Esse arquivo contém apenas preferências do usuário e nunca modifica os Provid
 
 ---
 
+# Estado do Projeto (`dev.toml`)
+
+`dev init` grava um `dev.toml` na raiz do projeto declarando o que colocou ali; `dev doctor` lê esse arquivo para saber o que verificar.
+
+```toml
+schema = 1
+
+[components.python]
+version = "3.12.1"
+
+[components.docker]
+version = "27.3.1"
+```
+
+Cada execução de `dev init <componente>` no mesmo projeto **acrescenta** uma entrada, permitindo combinações (`dev init python` seguido de `dev init docker`).
+
+**Por quê um arquivo declarado em vez de detecção por heurística:** a alternativa seria farejar o diretório (`pyproject.toml` ⇒ Python, `Cargo.toml` ⇒ Rust). Heurística erra em monorepos, em projetos que usam uma linguagem sem o arquivo canônico, e não tem como descobrir decisões que não deixam rastro no disco. Como é o próprio `dev` quem cria o projeto, ele pode simplesmente **registrar** o que fez — informação exata em vez de inferida, e sem regra nova a cada componente suportado.
+
+**Por quê ele é distinto do `config.toml` e do `manifest.toml`:** os três têm dono e ciclo de vida diferentes — o `manifest.toml` é escrito pelo desenvolvedor do `dev` e vai embutido no binário; o `config.toml` é escrito pelo usuário e vale para a máquina inteira; o `dev.toml` é escrito pela própria ferramenta e descreve **um projeto**. Ele não é configuração ajustável, é estado registrado.
+
+Regras:
+
+1. **A versão é registrada na criação.** Guardar a versão permite ao `doctor` distinguir "não está instalado" de "está instalado em outra versão da que este projeto usou". Consequência: o `init` precisa descobrir a versão instalada no momento da criação.
+2. **Sem `dev.toml`, o `doctor` falha** com erro de usuário (código 2) e sugere rodar o `dev init`. O comando é sobre um projeto; fora de um, não há pergunta a responder — inventar um diagnóstico genérico da máquina seria responder outra coisa.
+3. **Componente desconhecido é erro** (código 2), nunca ignorado. Um `dev.toml` citando um Provider que este binário não conhece significa que o projeto foi criado por uma versão mais nova do `dev`; seguir em frente produziria um diagnóstico incompleto que parece completo. Mesmo princípio da chave desconhecida na config.
+
+---
+
 # Provider Registry
 
 Responsável por registrar e disponibilizar todos os Providers da aplicação.

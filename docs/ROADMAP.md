@@ -248,6 +248,20 @@ Implementar `dev init <linguagem>` (usa os templates embutidos do Provider — v
 
 Implementar `dev search` — pós-MVP
 
+### DEV-076
+
+Implementar a leitura e a escrita do `dev.toml` (estado do projeto — ver "Estado do Projeto" em ARCHITECTURE.md): parsing com validação de schema, escrita idempotente (rodar `dev init` de novo acrescenta ou atualiza um componente, não duplica) e registro da versão instalada no momento da criação.
+
+### DEV-077
+
+Ligar o `dev.toml` aos comandos: o `dev init` grava o componente criado; o `dev doctor` lê o arquivo e consulta apenas os Providers declarados. Ausência do arquivo = erro de usuário com sugestão de rodar o `dev init`; componente declarado que o binário não conhece = erro de usuário.
+
+**Depende do DEV-076.** Entregue **depois** do milestone de vertical slice: o marco prova o caminho CLI → Registry → Provider → Adapter → Runner com o Provider resolvido diretamente; o `dev.toml` só troca *quem escolhe* os Providers a consultar, então é aditivo.
+
+### DEV-078
+
+Criar DockerProvider — pós-MVP. O Docker encaixa na trait `Provider` como qualquer linguagem (`dev init docker` acrescenta o componente ao `dev.toml`, `dev doctor` verifica sua presença), mas está fora do escopo do MVP, que é Python e Rust.
+
 ---
 
 ## Epic 9 — Testes de Integração e E2E

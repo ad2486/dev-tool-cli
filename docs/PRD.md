@@ -106,13 +106,17 @@ Resultado:
 dev doctor
 ```
 
+`dev doctor` diagnostica **o projeto do diretório atual**, não a máquina em geral.
+
+Ele lê o `dev.toml` que o `dev init` deixou na raiz do projeto, descobre ali quais componentes o projeto usa (ex.: `python` e `docker`) e verifica, para cada um, se as ferramentas correspondentes estão presentes e se a versão bate com a registrada na criação.
+
 Verifica:
 
+* os componentes declarados no `dev.toml` (linguagens e ferramentas de cada Provider)
 * Git
-* Docker
-* Linguagens
 * PATH
-* Ferramentas opcionais
+
+Fora de um projeto — sem `dev.toml` — o comando falha com erro de usuário e sugere rodar o `dev init`.
 
 ---
 
