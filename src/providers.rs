@@ -3,7 +3,11 @@ pub mod python;
 use crate::os::{CommandRunner, OsAdapter};
 use anyhow::Result;
 pub use manifest::{Manifest, ManifestError};
-use std::{collections::HashMap, rc::Rc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+    rc::Rc,
+};
 pub struct InstallContext {
     pub config: HashMap<String, String>,
     pub os_adapter: Rc<dyn OsAdapter>,
@@ -63,13 +67,23 @@ impl std::fmt::Display for Report {
     }
 }
 
-pub struct InitOpts;
+pub struct InitOpts {
+    pub dir: PathBuf,
+}
+
 pub trait Provider {
     fn name(&self) -> &str;
     fn manifest(&self) -> &Manifest;
     fn install(&self, ctx: &InstallContext) -> Result<()>;
     fn doctor(&self, ctx: &InstallContext) -> Result<Report>;
-    fn init(&self, ctx: &InstallContext, opts: InitOpts) -> Result<()>;
+    fn init(&self, ctx: &InstallContext, opts: &InitOpts) -> Result<()>;
+    fn versions(&self, ctx: &InstallContext) -> Result<BTreeMap<String, String>>;
+}
+
+pub fn parse_version(text: &str) -> Option<String> {
+    text.split_whitespace()
+        .find(|word| word.starts_with(|c: char| c.is_ascii_digit()))
+        .map(|word| word.to_string())
 }
 
 #[cfg(test)]
@@ -123,5 +137,24 @@ mod tests {
             report.to_string(),
             "python:\n  python3      ok\n  uv           missing\n"
         );
+    }
+
+    #[test]
+    fn parse_version_takes_the_first_numeric_word() {
+        assert_eq!(
+            parse_version("uv 0.12.17 (Homebrew 2026-09-18 aarch64-apple-darwin)"),
+            Some("0.12.17".to_string())
+        );
+        assert_eq!(parse_version("Python 3.12.1\n"), Some("3.12.1".to_string()));
+        assert_eq!(
+            parse_version("rustc 1.83.0 (90b35a623 2024-11-26)"),
+            Some("1.83.0".to_string())
+        );
+    }
+
+    #[test]
+    fn parse_version_is_none_without_a_number() {
+        assert_eq!(parse_version("command not found"), None);
+        assert_eq!(parse_version(""), None);
     }
 }

@@ -1,7 +1,8 @@
 use super::manifest::{self, Manifest, ManifestError};
-use super::{Check, InitOpts, InstallContext, Provider, Report, Status};
+use super::{Check, InitOpts, InstallContext, Provider, Report, Status, parse_version};
 use crate::os::Command;
 use anyhow::{Context, Result};
+use std::collections::BTreeMap;
 
 pub struct PythonProvider {
     manifest: Manifest,
@@ -96,8 +97,51 @@ impl Provider for PythonProvider {
         ))
     }
 
-    fn init(&self, _ctx: &InstallContext, _opts: InitOpts) -> Result<()> {
-        anyhow::bail!("`dev init python` is not implemented yet")
+    fn init(&self, ctx: &InstallContext, opts: &InitOpts) -> Result<()> {
+        if opts.dir.join("pyproject.toml").exists() {
+            log::warn!("a Python project already exists here, skipping `uv init`");
+            return Ok(());
+        }
+
+        log::info!("initializing a Python project");
+        ctx.command_runner.execute(&Command {
+            program: "uv".to_string(),
+            args: vec!["init".to_string(), opts.dir.display().to_string()],
+        })?;
+        Ok(())
+    }
+
+    fn versions(&self, ctx: &InstallContext) -> Result<BTreeMap<String, String>> {
+        let mut versions = BTreeMap::new();
+
+        let uv = ctx.command_runner.capture(&Command {
+            program: "uv".to_string(),
+            args: vec!["--version".to_string()],
+        })?;
+        if let Some(version) = parse_version(&uv.stdout) {
+            versions.insert("uv".to_string(), version);
+        }
+
+        let found = ctx.command_runner.capture(&Command {
+            program: "uv".to_string(),
+            args: vec![
+                "python".to_string(),
+                "find".to_string(),
+                "--managed-python".to_string(),
+            ],
+        })?;
+        let interpreter = found.stdout.trim();
+        if found.code == 0 && !interpreter.is_empty() {
+            let python = ctx.command_runner.capture(&Command {
+                program: interpreter.to_string(),
+                args: vec!["--version".to_string()],
+            })?;
+            if let Some(version) = parse_version(&python.stdout) {
+                versions.insert("python".to_string(), version);
+            }
+        }
+
+        Ok(versions)
     }
 }
 
@@ -262,5 +306,89 @@ mod tests {
         provider.install(&ctx).unwrap();
 
         assert_eq!(scripts(&runner), vec!["uv python install"]);
+    }
+
+    fn output(code: i32, stdout: &str) -> Output {
+        Output {
+            code,
+            stdout: stdout.to_string(),
+            stderr: String::new(),
+        }
+    }
+
+    fn temp_dir(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("dev-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn init_runs_uv_init_in_the_target_directory() {
+        let provider = PythonProvider::new().unwrap();
+        let runner = Rc::new(RecordingRunner::new());
+        let ctx = context_with(FakeAdapter::with(&["uv"]), runner.clone());
+        let dir = temp_dir("init-fresh");
+
+        provider.init(&ctx, &InitOpts { dir: dir.clone() }).unwrap();
+
+        let commands = runner.commands();
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].program, "uv");
+        assert_eq!(
+            commands[0].args,
+            vec!["init".to_string(), dir.display().to_string()]
+        );
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn init_skips_an_existing_python_project() {
+        let provider = PythonProvider::new().unwrap();
+        let runner = Rc::new(RecordingRunner::new());
+        let ctx = context_with(FakeAdapter::with(&["uv"]), runner.clone());
+        let dir = temp_dir("init-existing");
+        std::fs::write(dir.join("pyproject.toml"), "").unwrap();
+
+        provider.init(&ctx, &InitOpts { dir: dir.clone() }).unwrap();
+
+        assert!(runner.commands().is_empty());
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn versions_reports_uv_and_the_managed_python() {
+        let provider = PythonProvider::new().unwrap();
+        let runner = Rc::new(RecordingRunner::new());
+        runner.push_response(output(
+            0,
+            "uv 0.12.17 (Homebrew 2026-09-18 aarch64-apple-darwin)\n",
+        ));
+        runner.push_response(output(
+            0,
+            "/Users/x/.local/share/uv/python/cpython-3.12.1/bin/python3\n",
+        ));
+        runner.push_response(output(0, "Python 3.12.1\n"));
+        let ctx = context_with(FakeAdapter::with(&["uv"]), runner);
+
+        let versions = provider.versions(&ctx).unwrap();
+
+        assert_eq!(versions["uv"], "0.12.17");
+        assert_eq!(versions["python"], "3.12.1");
+    }
+
+    #[test]
+    fn versions_omits_python_when_uv_manages_none() {
+        let provider = PythonProvider::new().unwrap();
+        let runner = Rc::new(RecordingRunner::new());
+        runner.push_response(output(0, "uv 0.12.17\n"));
+        runner.push_response(output(2, ""));
+        let ctx = context_with(FakeAdapter::with(&["uv"]), runner);
+
+        let versions = provider.versions(&ctx).unwrap();
+
+        assert_eq!(versions.len(), 1);
+        assert!(!versions.contains_key("python"));
     }
 }

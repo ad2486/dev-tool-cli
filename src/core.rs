@@ -57,8 +57,15 @@ mod tests {
             Ok(Report::new(self.name.clone(), vec![]))
         }
 
-        fn init(&self, _ctx: &InstallContext, _opts: InitOpts) -> anyhow::Result<()> {
+        fn init(&self, _ctx: &InstallContext, _opts: &InitOpts) -> anyhow::Result<()> {
             Ok(())
+        }
+
+        fn versions(
+            &self,
+            _ctx: &InstallContext,
+        ) -> anyhow::Result<std::collections::BTreeMap<String, String>> {
+            Ok(std::collections::BTreeMap::new())
         }
     }
 
