@@ -11,7 +11,7 @@ use crate::{
     core::Registry,
     errors::{AppError, ErrorCategory},
     os::{CommandRunner, DryRunRunner, RealRunner},
-    providers::python::PythonProvider,
+    providers::{python::PythonProvider, rust::RustProvider},
 };
 use clap::Parser;
 use env_logger::Builder;
@@ -49,6 +49,7 @@ fn run(cli: Cli) -> Result<(), AppError> {
 
     let mut registry = Registry::new();
     registry.register(Box::new(PythonProvider::new()?));
+    registry.register(Box::new(RustProvider::new()?));
 
     let real_runner = RealRunner::with_path(tool_bin_dirs(&registry));
     let command_runner: Rc<dyn CommandRunner> = if cli.dry_run {

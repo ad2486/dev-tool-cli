@@ -1,7 +1,10 @@
 use super::manifest::{self, Manifest, ManifestError};
-use super::{Check, InitOpts, InstallContext, Provider, Report, Status, parse_version};
+use super::{
+    Check, InitOpts, InstallContext, Provider, Report, ensure, manifest_command, parse_version,
+    shell, status,
+};
 use crate::os::Command;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use std::collections::BTreeMap;
 
 pub struct PythonProvider {
@@ -12,26 +15,6 @@ impl PythonProvider {
     pub fn new() -> Result<Self, ManifestError> {
         let manifest = manifest::parse(include_str!("python/manifest.toml"))?;
         Ok(Self { manifest })
-    }
-
-    fn command(&self, key: &str) -> Result<&str> {
-        self.manifest
-            .commands
-            .get(key)
-            .map(|command| command.as_str())
-            .with_context(|| format!("manifest is missing the `{key}` command"))
-    }
-
-    fn ensure(&self, ctx: &InstallContext, binary: &str, command_key: &str) -> Result<()> {
-        if ctx.os_adapter.command_exists(binary)? {
-            log::warn!("{binary} is already installed, skipping");
-            return Ok(());
-        }
-
-        let script = self.command(command_key)?;
-        log::info!("installing {binary}");
-        ctx.command_runner.execute(&shell(script))?;
-        Ok(())
     }
 
     fn has_managed_python(&self, ctx: &InstallContext) -> Result<bool> {
@@ -50,17 +33,6 @@ impl PythonProvider {
     }
 }
 
-fn status(present: bool) -> Status {
-    if present { Status::Ok } else { Status::Missing }
-}
-
-fn shell(script: &str) -> Command {
-    Command {
-        program: "sh".to_string(),
-        args: vec!["-c".to_string(), script.to_string()],
-    }
-}
-
 impl Provider for PythonProvider {
     fn name(&self) -> &str {
         &self.manifest.name
@@ -71,7 +43,7 @@ impl Provider for PythonProvider {
     }
 
     fn install(&self, ctx: &InstallContext) -> Result<()> {
-        self.ensure(ctx, "uv", "install_uv")?;
+        ensure(ctx, &self.manifest, "uv", "install_uv")?;
 
         if self.has_managed_python(ctx)? {
             log::warn!("a uv-managed Python is already installed, skipping");
@@ -80,7 +52,7 @@ impl Provider for PythonProvider {
 
         log::info!("installing Python");
         ctx.command_runner
-            .execute(&shell(self.command("install_python")?))?;
+            .execute(&shell(manifest_command(&self.manifest, "install_python")?))?;
         Ok(())
     }
 
@@ -149,6 +121,7 @@ impl Provider for PythonProvider {
 mod tests {
     use super::*;
     use crate::os::{CommandRunner, OsAdapter, OsError, Output, RecordingRunner};
+    use crate::providers::Status;
     use std::collections::HashMap;
     use std::rc::Rc;
 

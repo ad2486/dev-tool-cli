@@ -1,7 +1,8 @@
 mod manifest;
 pub mod python;
-use crate::os::{CommandRunner, OsAdapter};
-use anyhow::Result;
+pub mod rust;
+use crate::os::{Command, CommandRunner, OsAdapter};
+use anyhow::{Context, Result};
 pub use manifest::{Manifest, ManifestError};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -82,6 +83,46 @@ pub trait Provider {
     fn doctor(&self, ctx: &InstallContext) -> Result<Report>;
     fn init(&self, ctx: &InstallContext, opts: &InitOpts) -> Result<()>;
     fn versions(&self, ctx: &InstallContext) -> Result<BTreeMap<String, String>>;
+}
+
+pub(crate) fn manifest_command<'a>(manifest: &'a Manifest, key: &str) -> Result<&'a str> {
+    manifest
+        .commands
+        .get(key)
+        .map(|command| command.as_str())
+        .with_context(|| format!("manifest is missing the `{key}` command"))
+}
+
+pub(crate) fn ensure(
+    ctx: &InstallContext,
+    manifest: &Manifest,
+    binary: &str,
+    command_key: &str,
+) -> Result<()> {
+    if ctx.os_adapter.command_exists(binary)? {
+        log::warn!("{binary} is already installed, skipping");
+        return Ok(());
+    }
+
+    let script = manifest_command(manifest, command_key)?;
+    log::info!("installing {binary}");
+    ctx.command_runner.execute(&shell(script))?;
+    Ok(())
+}
+
+pub(crate) fn shell(script: &str) -> Command {
+    Command {
+        program: "sh".to_string(),
+        args: vec!["-c".to_string(), script.to_string()],
+    }
+}
+
+pub(crate) fn status(present: bool) -> Status {
+    if present { Status::Ok } else { Status::Missing }
+}
+
+pub(crate) fn args(words: &[&str]) -> Vec<String> {
+    words.iter().map(|word| word.to_string()).collect()
 }
 
 pub fn same_minor(a: &str, b: &str) -> bool {
