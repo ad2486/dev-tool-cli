@@ -22,6 +22,8 @@ pub enum ProjectError {
     MissingSchema,
     #[error("Unsupported {FILE_NAME} schema {0}; this project needs a newer `dev`")]
     UnsupportedSchema(i64),
+    #[error("Unknown component `{0}` in {FILE_NAME}; this project needs a newer `dev`")]
+    UnknownComponent(String),
     #[error("Couldn't read or write the {FILE_NAME} file")]
     Io(std::io::Error),
     #[error("Couldn't serialize the {FILE_NAME} file")]
@@ -35,6 +37,7 @@ impl ErrorCategory for ProjectError {
             Self::Invalid(_) => Category::User,
             Self::MissingSchema => Category::User,
             Self::UnsupportedSchema(_) => Category::User,
+            Self::UnknownComponent(_) => Category::User,
             Self::Io(_) => Category::Environment,
             Self::Serialize(_) => Category::Internal,
         }
