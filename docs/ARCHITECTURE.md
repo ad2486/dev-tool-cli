@@ -147,6 +147,12 @@ Regras:
 2. **Sem `dev.toml`, o `doctor` falha** com erro de usuário (código 2) e sugere rodar o `dev init`. O comando é sobre um projeto; fora de um, não há pergunta a responder — inventar um diagnóstico genérico da máquina seria responder outra coisa.
 3. **Componente desconhecido é erro** (código 2), nunca ignorado. Um `dev.toml` citando um Provider que este binário não conhece significa que o projeto foi criado por uma versão mais nova do `dev`; seguir em frente produziria um diagnóstico incompleto que parece completo. Mesmo princípio da chave desconhecida na config.
 
+**Comparação de versão.** O handler do `doctor` compara a versão registrada no `dev.toml` com a que o Provider reporta hoje (`versions()`) e marca o check como divergente quando elas não batem. Só checks `Ok` são comparados: uma dependência ausente continua ausente, e uma dependência não registrada não tem com o que ser comparada.
+
+**Por quê major.minor e não a versão exata:** a diferença de patch (`3.12.1` → `3.12.9`) é correção de bug e quase nunca muda o comportamento do projeto; compará-la faria o `doctor` reclamar a cada atualização rotineira. Mudar de minor (`3.12` → `3.13`) muda sintaxe e compatibilidade de bibliotecas, que é o que vale avisar. A divergência não altera o código de saída — o `doctor` avisa, não bloqueia.
+
+**Por quê a comparação fica no handler e não no Provider:** o Provider não conhece o `dev.toml`; ele só sabe as versões instaladas. O handler é o único que tem as duas pontas. **Contrato:** o nome de cada check do `Report` é a mesma chave usada em `versions()` e no `[dependencies]` — é assim que o handler casa um check com sua versão registrada.
+
 ---
 
 # Provider Registry

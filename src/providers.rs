@@ -17,6 +17,7 @@ pub struct InstallContext {
 pub enum Status {
     Ok,
     Missing,
+    Mismatch { expected: String, found: String },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -57,9 +58,12 @@ impl std::fmt::Display for Report {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(f, "{}:", self.component)?;
         for check in &self.checks {
-            let mark = match check.status {
-                Status::Ok => "ok",
-                Status::Missing => "missing",
+            let mark = match &check.status {
+                Status::Ok => "ok".to_string(),
+                Status::Missing => "missing".to_string(),
+                Status::Mismatch { expected, found } => {
+                    format!("{found} (project uses {expected})")
+                }
             };
             writeln!(f, "  {:<12} {}", check.name, mark)?;
         }
@@ -78,6 +82,10 @@ pub trait Provider {
     fn doctor(&self, ctx: &InstallContext) -> Result<Report>;
     fn init(&self, ctx: &InstallContext, opts: &InitOpts) -> Result<()>;
     fn versions(&self, ctx: &InstallContext) -> Result<BTreeMap<String, String>>;
+}
+
+pub fn same_minor(a: &str, b: &str) -> bool {
+    a.split('.').take(2).eq(b.split('.').take(2))
 }
 
 pub fn parse_version(text: &str) -> Option<String> {
@@ -156,5 +164,32 @@ mod tests {
     fn parse_version_is_none_without_a_number() {
         assert_eq!(parse_version("command not found"), None);
         assert_eq!(parse_version(""), None);
+    }
+
+    #[test]
+    fn same_minor_ignores_the_patch_level() {
+        assert!(same_minor("3.12.1", "3.12.9"));
+        assert!(!same_minor("3.12.1", "3.13.0"));
+        assert!(!same_minor("3.12.1", "4.12.1"));
+    }
+
+    #[test]
+    fn a_mismatch_is_not_healthy_and_shows_both_versions() {
+        let report = Report::new(
+            "python",
+            vec![Check::new(
+                "python",
+                Status::Mismatch {
+                    expected: "3.12.1".to_string(),
+                    found: "3.13.0".to_string(),
+                },
+            )],
+        );
+
+        assert!(!report.is_healthy());
+        assert_eq!(
+            report.to_string(),
+            "python:\n  python       3.13.0 (project uses 3.12.1)\n"
+        );
     }
 }
