@@ -34,6 +34,21 @@ impl PythonProvider {
         ctx.command_runner.execute(&shell(script))?;
         Ok(())
     }
+
+    fn has_managed_python(&self, ctx: &InstallContext) -> Result<bool> {
+        let command = Command {
+            program: "uv".to_string(),
+            args: vec![
+                "python".to_string(),
+                "list".to_string(),
+                "--managed-python".to_string(),
+                "--only-installed".to_string(),
+            ],
+        };
+
+        let output = ctx.command_runner.capture(&command)?;
+        Ok(!output.stdout.trim().is_empty())
+    }
 }
 
 fn shell(script: &str) -> Command {
@@ -54,7 +69,15 @@ impl Provider for PythonProvider {
 
     fn install(&self, ctx: &InstallContext) -> Result<()> {
         self.ensure(ctx, "uv", "install_uv")?;
-        self.ensure(ctx, "python3", "install_python")?;
+
+        if self.has_managed_python(ctx)? {
+            log::warn!("a uv-managed Python is already installed, skipping");
+            return Ok(());
+        }
+
+        log::info!("installing Python");
+        ctx.command_runner
+            .execute(&shell(self.command("install_python")?))?;
         Ok(())
     }
 
@@ -81,7 +104,7 @@ impl Provider for PythonProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::os::{CommandRunner, OsAdapter, OsError, RecordingRunner};
+    use crate::os::{CommandRunner, OsAdapter, OsError, Output, RecordingRunner};
     use std::collections::HashMap;
     use std::rc::Rc;
 
@@ -127,8 +150,18 @@ mod tests {
         runner
             .commands()
             .iter()
+            .filter(|command| command.program == "sh")
             .map(|command| command.args.last().cloned().unwrap_or_default())
             .collect()
+    }
+
+    fn installed_python() -> Output {
+        Output {
+            code: 0,
+            stdout: "cpython-3.12.1-macos-aarch64-none    /Users/x/.local/share/uv/python\n"
+                .to_string(),
+            stderr: String::new(),
+        }
     }
 
     #[test]
@@ -186,7 +219,7 @@ mod tests {
     }
 
     #[test]
-    fn install_skips_what_is_already_there() {
+    fn install_skips_uv_when_it_is_already_there() {
         let provider = PythonProvider::new().unwrap();
         let runner = Rc::new(RecordingRunner::new());
         let ctx = context_with(FakeAdapter::with(&["uv"]), runner.clone());
@@ -197,13 +230,25 @@ mod tests {
     }
 
     #[test]
-    fn install_is_idempotent_when_everything_is_installed() {
+    fn install_is_idempotent_when_uv_already_manages_a_python() {
+        let provider = PythonProvider::new().unwrap();
+        let runner = Rc::new(RecordingRunner::new());
+        runner.push_response(installed_python());
+        let ctx = context_with(FakeAdapter::with(&["uv"]), runner.clone());
+
+        provider.install(&ctx).unwrap();
+
+        assert!(scripts(&runner).is_empty());
+    }
+
+    #[test]
+    fn a_system_python_does_not_count_as_installed() {
         let provider = PythonProvider::new().unwrap();
         let runner = Rc::new(RecordingRunner::new());
         let ctx = context_with(FakeAdapter::with(&["uv", "python3"]), runner.clone());
 
         provider.install(&ctx).unwrap();
 
-        assert!(runner.commands().is_empty());
+        assert_eq!(scripts(&runner), vec!["uv python install"]);
     }
 }
