@@ -1,4 +1,5 @@
 pub mod doctor;
+pub mod install;
 
 use clap::Parser;
 use clap::Subcommand;

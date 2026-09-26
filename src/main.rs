@@ -58,8 +58,8 @@ fn run(cli: Cli) -> Result<(), AppError> {
 
     match cli.command {
         Commands::Doctor => cli::doctor::run(&registry, &config, os_adapter, command_runner),
-        Commands::Install { .. } => {
-            Err(anyhow::anyhow!("`dev install` is not implemented yet").into())
+        Commands::Install { ref language } => {
+            cli::install::run(&registry, &config, os_adapter, command_runner, language)
         }
         Commands::Init { .. } => Err(anyhow::anyhow!("`dev init` is not implemented yet").into()),
         Commands::Config { .. } => {

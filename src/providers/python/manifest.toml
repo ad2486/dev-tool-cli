@@ -7,12 +7,8 @@ linter = "ruff"
 tester = "pytest"
 
 [packages]
-apt = "python3"
-brew = "python"
-
-[packages.uv]
-apt = "uv"
-brew = "uv"
 
 [commands]
+install_uv = "curl -LsSf https://astral.sh/uv/install.sh | sh"
+install_python = "uv python install"
 init = "uv init"

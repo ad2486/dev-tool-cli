@@ -1,6 +1,7 @@
 use super::manifest::{self, Manifest, ManifestError};
 use super::{Check, InitOpts, InstallContext, Provider, Report, Status};
-use anyhow::Result;
+use crate::os::Command;
+use anyhow::{Context, Result};
 
 const REQUIRED_BINARIES: &[&str] = &["python3", "uv"];
 
@@ -13,6 +14,33 @@ impl PythonProvider {
         let manifest = manifest::parse(include_str!("python/manifest.toml"))?;
         Ok(Self { manifest })
     }
+
+    fn command(&self, key: &str) -> Result<&str> {
+        self.manifest
+            .commands
+            .get(key)
+            .map(|command| command.as_str())
+            .with_context(|| format!("manifest is missing the `{key}` command"))
+    }
+
+    fn ensure(&self, ctx: &InstallContext, binary: &str, command_key: &str) -> Result<()> {
+        if ctx.os_adapter.command_exists(binary)? {
+            log::warn!("{binary} is already installed, skipping");
+            return Ok(());
+        }
+
+        let script = self.command(command_key)?;
+        log::info!("installing {binary}");
+        ctx.command_runner.execute(&shell(script))?;
+        Ok(())
+    }
+}
+
+fn shell(script: &str) -> Command {
+    Command {
+        program: "sh".to_string(),
+        args: vec!["-c".to_string(), script.to_string()],
+    }
 }
 
 impl Provider for PythonProvider {
@@ -24,8 +52,10 @@ impl Provider for PythonProvider {
         &self.manifest
     }
 
-    fn install(&self, _ctx: &InstallContext) -> Result<()> {
-        anyhow::bail!("`dev install python` is not implemented yet")
+    fn install(&self, ctx: &InstallContext) -> Result<()> {
+        self.ensure(ctx, "uv", "install_uv")?;
+        self.ensure(ctx, "python3", "install_python")?;
+        Ok(())
     }
 
     fn doctor(&self, ctx: &InstallContext) -> Result<Report> {
@@ -82,11 +112,23 @@ mod tests {
     }
 
     fn context(adapter: Rc<dyn OsAdapter>) -> InstallContext {
+        context_with(adapter, Rc::new(RecordingRunner::new()))
+    }
+
+    fn context_with(adapter: Rc<dyn OsAdapter>, runner: Rc<RecordingRunner>) -> InstallContext {
         InstallContext {
             config: HashMap::new(),
             os_adapter: adapter,
-            command_runner: Rc::new(RecordingRunner::new()) as Rc<dyn CommandRunner>,
+            command_runner: runner as Rc<dyn CommandRunner>,
         }
+    }
+
+    fn scripts(runner: &RecordingRunner) -> Vec<String> {
+        runner
+            .commands()
+            .iter()
+            .map(|command| command.args.last().cloned().unwrap_or_default())
+            .collect()
     }
 
     #[test]
@@ -124,5 +166,44 @@ mod tests {
                 Check::new("uv", Status::Missing),
             ]
         );
+    }
+
+    #[test]
+    fn install_runs_both_steps_on_a_bare_machine() {
+        let provider = PythonProvider::new().unwrap();
+        let runner = Rc::new(RecordingRunner::new());
+        let ctx = context_with(FakeAdapter::with(&[]), runner.clone());
+
+        provider.install(&ctx).unwrap();
+
+        assert_eq!(
+            scripts(&runner),
+            vec![
+                "curl -LsSf https://astral.sh/uv/install.sh | sh",
+                "uv python install",
+            ]
+        );
+    }
+
+    #[test]
+    fn install_skips_what_is_already_there() {
+        let provider = PythonProvider::new().unwrap();
+        let runner = Rc::new(RecordingRunner::new());
+        let ctx = context_with(FakeAdapter::with(&["uv"]), runner.clone());
+
+        provider.install(&ctx).unwrap();
+
+        assert_eq!(scripts(&runner), vec!["uv python install"]);
+    }
+
+    #[test]
+    fn install_is_idempotent_when_everything_is_installed() {
+        let provider = PythonProvider::new().unwrap();
+        let runner = Rc::new(RecordingRunner::new());
+        let ctx = context_with(FakeAdapter::with(&["uv", "python3"]), runner.clone());
+
+        provider.install(&ctx).unwrap();
+
+        assert!(runner.commands().is_empty());
     }
 }

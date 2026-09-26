@@ -27,7 +27,23 @@ pub trait ErrorCategory {
 }
 
 #[derive(thiserror::Error, Debug)]
+pub enum CliError {
+    #[error("Unknown language `{0}`. Supported: {1}")]
+    UnknownLanguage(String, String),
+}
+
+impl ErrorCategory for CliError {
+    fn category(&self) -> Category {
+        match self {
+            Self::UnknownLanguage(..) => Category::User,
+        }
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
 pub enum AppError {
+    #[error(transparent)]
+    Cli(#[from] CliError),
     #[error(transparent)]
     Config(#[from] ConfigError),
     #[error(transparent)]
@@ -43,6 +59,7 @@ pub enum AppError {
 impl ErrorCategory for AppError {
     fn category(&self) -> Category {
         match self {
+            Self::Cli(error) => error.category(),
             Self::Config(error) => error.category(),
             Self::Os(error) => error.category(),
             Self::Manifest(error) => error.category(),
