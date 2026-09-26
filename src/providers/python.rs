@@ -3,8 +3,6 @@ use super::{Check, InitOpts, InstallContext, Provider, Report, Status};
 use crate::os::Command;
 use anyhow::{Context, Result};
 
-const REQUIRED_BINARIES: &[&str] = &["python3", "uv"];
-
 pub struct PythonProvider {
     manifest: Manifest,
 }
@@ -51,6 +49,10 @@ impl PythonProvider {
     }
 }
 
+fn status(present: bool) -> Status {
+    if present { Status::Ok } else { Status::Missing }
+}
+
 fn shell(script: &str) -> Command {
     Command {
         program: "sh".to_string(),
@@ -82,18 +84,16 @@ impl Provider for PythonProvider {
     }
 
     fn doctor(&self, ctx: &InstallContext) -> Result<Report> {
-        let mut checks = Vec::new();
+        let uv = ctx.os_adapter.command_exists("uv")?;
+        let python = uv && self.has_managed_python(ctx)?;
 
-        for binary in REQUIRED_BINARIES {
-            let status = if ctx.os_adapter.command_exists(binary)? {
-                Status::Ok
-            } else {
-                Status::Missing
-            };
-            checks.push(Check::new(*binary, status));
-        }
-
-        Ok(Report::new(self.name(), checks))
+        Ok(Report::new(
+            self.name(),
+            vec![
+                Check::new("uv", status(uv)),
+                Check::new("python", status(python)),
+            ],
+        ))
     }
 
     fn init(&self, _ctx: &InstallContext, _opts: InitOpts) -> Result<()> {
@@ -173,32 +173,44 @@ mod tests {
     }
 
     #[test]
-    fn doctor_reports_every_required_binary_as_ok_when_present() {
+    fn doctor_is_healthy_when_uv_manages_a_python() {
         let provider = PythonProvider::new().unwrap();
-        let ctx = context(FakeAdapter::with(&["python3", "uv"]));
+        let runner = Rc::new(RecordingRunner::new());
+        runner.push_response(installed_python());
+        let ctx = context_with(FakeAdapter::with(&["uv"]), runner);
 
         let report = provider.doctor(&ctx).unwrap();
 
         assert_eq!(report.component, "python");
         assert!(report.is_healthy());
-        assert_eq!(report.checks.len(), REQUIRED_BINARIES.len());
     }
 
     #[test]
-    fn doctor_marks_an_absent_binary_as_missing() {
+    fn doctor_reports_a_system_python_as_missing() {
         let provider = PythonProvider::new().unwrap();
-        let ctx = context(FakeAdapter::with(&["python3"]));
+        let ctx = context(FakeAdapter::with(&["uv", "python3"]));
+
+        let report = provider.doctor(&ctx).unwrap();
+
+        assert_eq!(
+            report.checks,
+            vec![
+                Check::new("uv", Status::Ok),
+                Check::new("python", Status::Missing),
+            ]
+        );
+    }
+
+    #[test]
+    fn doctor_does_not_query_uv_when_uv_is_missing() {
+        let provider = PythonProvider::new().unwrap();
+        let runner = Rc::new(RecordingRunner::new());
+        let ctx = context_with(FakeAdapter::with(&[]), runner.clone());
 
         let report = provider.doctor(&ctx).unwrap();
 
         assert!(!report.is_healthy());
-        assert_eq!(
-            report.checks,
-            vec![
-                Check::new("python3", Status::Ok),
-                Check::new("uv", Status::Missing),
-            ]
-        );
+        assert!(runner.commands().is_empty());
     }
 
     #[test]
