@@ -99,7 +99,7 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn real_apt_accepts_the_simulated_install() {
-        let adapter = AptAdapter::new(Rc::new(RealRunner), true);
+        let adapter = AptAdapter::new(Rc::new(RealRunner::default()), true);
         assert!(adapter.install_package("python3").is_ok());
     }
 

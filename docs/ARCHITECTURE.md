@@ -444,6 +444,14 @@ Como funciona:
 **Por quê a flag é passada ao adapter e não consultada no runner:** o adapter enxerga o runner apenas como `Rc<dyn CommandRunner>` e não deve ramificar conforme o tipo ou o modo dele — um método `is_dry_run()` na trait desfaria essa opacidade. Mover a escolha para quem chama (um `simulate_install` separado na trait) empurraria a ramificação para dentro de cada Provider. O custo aceito é a flag existir em dois lugares (runner e adapter); ambos são construídos a partir do mesmo `--dry-run`, no mesmo ponto de montagem.
 * **recording (testes):** fake que grava a sequência de comandos recebidos e retorna respostas programadas.
 
+**PATH das ferramentas recém-instaladas.** Os instaladores oficiais (`uv`, `rustup`) colocam os binários em pastas do usuário (`~/.local/bin`, `~/.cargo/bin`) e acrescentam essas pastas aos arquivos de inicialização do shell. Isso só vale para terminais **novos**: o processo do `dev` que acabou de instalar continua com o PATH antigo, e o comando seguinte da mesma execução não encontraria a ferramenta. Por isso cada manifest declara em `bin_dirs` onde suas ferramentas se instalam, e o `RealRunner` acrescenta essas pastas ao PATH de todo processo que cria.
+
+**Por quê não carregar o arquivo de shell do usuário (`source ~/.zshrc`):** `source` altera o ambiente do shell em que roda; executado pelo `dev`, ele alteraria um shell filho que termina em seguida, sem afetar o `dev`. Para funcionar, cada comando teria que rodar dentro desse shell — e aí o `dev` passaria a depender da configuração pessoal de cada usuário, que pode ser lenta, imprimir saída ou falhar fora de um terminal interativo, e cujo nome muda por shell e por sistema.
+
+**Por quê as pastas vão no fim do PATH:** o que já está instalado continua valendo — quem tem o `uv` do Homebrew segue usando o do Homebrew. As pastas acrescentadas só preenchem o que falta, que é exatamente o caso da instalação recém-feita.
+
+**Por quê o manifest declara as pastas e não o runner:** saber que o Rust mora em `~/.cargo/bin` é conhecimento da linguagem. O runner recebe a lista pronta na construção e continua sem conhecer ferramenta nenhuma.
+
 **Por quê:** concentrar a execução de processos em uma única abstração entrega três recursos de uma vez só — (1) testes unitários com fakes, sem tocar no sistema real; (2) `--dry-run` global implementado em um único lugar, valendo para todos os comandos; (3) logging centralizado de tudo o que o `dev` executa. Sem essa costura, cada um desses recursos teria que ser reimplementado em cada Provider e Adapter.
 
 ---

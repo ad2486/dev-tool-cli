@@ -10,6 +10,8 @@ pub struct Manifest {
     pub tools: HashMap<String, String>,
     pub packages: HashMap<String, PackageEntry>,
     pub commands: HashMap<String, String>,
+    #[serde(default)]
+    pub bin_dirs: Vec<String>,
 }
 
 #[derive(serde::Deserialize, Debug, PartialEq)]

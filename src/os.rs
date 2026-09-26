@@ -3,6 +3,8 @@ use apt::AptAdapter;
 use brew::BrewAdapter;
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 pub mod apt;
@@ -84,9 +86,58 @@ pub struct Output {
     pub stderr: String,
 }
 
-pub struct RealRunner;
+#[derive(Debug, Clone, Default)]
+pub struct RealRunner {
+    extra_path: Vec<PathBuf>,
+}
 
-pub struct DryRunRunner;
+#[derive(Debug, Clone, Default)]
+pub struct DryRunRunner {
+    real: RealRunner,
+}
+
+impl RealRunner {
+    pub fn with_path(extra_path: Vec<PathBuf>) -> Self {
+        Self { extra_path }
+    }
+
+    fn command(&self, cmd: &Command) -> std::process::Command {
+        let mut command = std::process::Command::new(&cmd.program);
+        command.args(&cmd.args);
+        if !self.extra_path.is_empty() {
+            command.env(
+                "PATH",
+                augmented_path(std::env::var_os("PATH"), &self.extra_path),
+            );
+        }
+        command
+    }
+}
+
+impl DryRunRunner {
+    pub fn new(real: RealRunner) -> Self {
+        Self { real }
+    }
+}
+
+pub fn augmented_path(current: Option<OsString>, extra: &[PathBuf]) -> OsString {
+    let mut dirs: Vec<PathBuf> = current
+        .map(|path| std::env::split_paths(&path).collect())
+        .unwrap_or_default();
+    for dir in extra {
+        if !dirs.contains(dir) {
+            dirs.push(dir.clone());
+        }
+    }
+    std::env::join_paths(dirs).unwrap_or_default()
+}
+
+pub fn expand_home(path: &str, home: &Path) -> PathBuf {
+    match path.strip_prefix("~/") {
+        Some(rest) => home.join(rest),
+        None => PathBuf::from(path),
+    }
+}
 
 pub struct RecordingRunner {
     commands: RefCell<Vec<Command>>,
@@ -122,8 +173,8 @@ impl std::fmt::Display for Command {
 
 impl CommandRunner for RealRunner {
     fn execute(&self, cmd: &Command) -> Result<(), OsError> {
-        let status = std::process::Command::new(&cmd.program)
-            .args(&cmd.args)
+        let status = self
+            .command(cmd)
             .status()
             .map_err(|e| OsError::ExecutionFailed {
                 program: cmd.program.clone(),
@@ -143,8 +194,8 @@ impl CommandRunner for RealRunner {
     }
 
     fn capture(&self, cmd: &Command) -> Result<Output, OsError> {
-        let output = std::process::Command::new(&cmd.program)
-            .args(&cmd.args)
+        let output = self
+            .command(cmd)
             .output()
             .map_err(|e| OsError::ExecutionFailed {
                 program: cmd.program.clone(),
@@ -171,7 +222,7 @@ impl CommandRunner for DryRunRunner {
     }
 
     fn capture(&self, cmd: &Command) -> Result<Output, OsError> {
-        RealRunner.capture(cmd)
+        self.real.capture(cmd)
     }
 }
 
@@ -226,7 +277,7 @@ mod tests {
             args: vec![],                     // same here, we're not passing any arguments
         };
 
-        let result = DryRunRunner.execute(&command);
+        let result = DryRunRunner::default().execute(&command);
 
         assert!(result.is_ok()); // should be ok because we're not executing the command
     }
@@ -299,14 +350,14 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn posix_lookup_finds_an_installed_program() {
-        let result = command_exists(&RealRunner, "sh").unwrap();
+        let result = command_exists(&RealRunner::default(), "sh").unwrap();
         assert!(result);
     }
 
     #[test]
     #[cfg(unix)]
     fn posix_lookup_rejects_a_missing_program() {
-        let result = command_exists(&RealRunner, "holy-moly").unwrap(); // purposeful misspelling/nonexistent program
+        let result = command_exists(&RealRunner::default(), "holy-moly").unwrap(); // purposeful misspelling/nonexistent program
         assert!(!result);
     }
 
@@ -359,5 +410,65 @@ mod tests {
         let result = detect_adapter(runner.clone(), false);
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn augmented_path_appends_missing_dirs_after_the_existing_ones() {
+        let current = std::env::join_paths(["/usr/bin", "/bin"]).unwrap();
+
+        let path = augmented_path(Some(current), &[PathBuf::from("/home/x/.cargo/bin")]);
+
+        let dirs: Vec<PathBuf> = std::env::split_paths(&path).collect();
+        assert_eq!(
+            dirs,
+            vec![
+                PathBuf::from("/usr/bin"),
+                PathBuf::from("/bin"),
+                PathBuf::from("/home/x/.cargo/bin"),
+            ]
+        );
+    }
+
+    #[test]
+    fn augmented_path_does_not_repeat_a_dir_already_there() {
+        let current = std::env::join_paths(["/usr/bin", "/home/x/.cargo/bin"]).unwrap();
+
+        let path = augmented_path(Some(current), &[PathBuf::from("/home/x/.cargo/bin")]);
+
+        assert_eq!(std::env::split_paths(&path).count(), 2);
+    }
+
+    #[test]
+    fn expand_home_replaces_a_leading_tilde() {
+        let home = Path::new("/home/x");
+
+        assert_eq!(
+            expand_home("~/.local/bin", home),
+            PathBuf::from("/home/x/.local/bin")
+        );
+        assert_eq!(expand_home("/opt/bin", home), PathBuf::from("/opt/bin"));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn real_runner_finds_a_program_in_an_extra_dir() {
+        let dir = std::env::temp_dir().join(format!("dev-extra-path-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let program = dir.join("dev-fake-tool");
+        std::fs::write(&program, "#!/bin/sh\necho found\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let runner = RealRunner::with_path(vec![dir.clone()]);
+        let output = runner
+            .capture(&Command {
+                program: "dev-fake-tool".to_string(),
+                args: vec![],
+            })
+            .unwrap();
+
+        assert_eq!(output.stdout.trim(), "found");
+
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

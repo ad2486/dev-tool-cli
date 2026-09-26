@@ -1,5 +1,6 @@
 schema = 1
 name = "python"
+bin_dirs = ["~/.local/bin"]
 
 [tools]
 formatter = "ruff"
