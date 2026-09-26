@@ -51,6 +51,7 @@ src/
 ├── providers/    # trait Provider + implementações (+ recursos embutidos)
 ├── os/           # OsAdapter, CommandRunner, detecção de SO/gerenciador
 ├── config/       # configuração do usuário
+├── project/      # estado do projeto (dev.toml)
 └── errors/       # taxonomia de erros e códigos de saída
 ```
 
@@ -124,15 +125,17 @@ Esse arquivo contém apenas preferências do usuário e nunca modifica os Provid
 
 ```toml
 schema = 1
+components = ["python", "docker"]
 
-[components.python]
-version = "3.12.1"
-
-[components.docker]
-version = "27.3.1"
+[dependencies]
+python3 = "3.12.1"
+uv = "0.4.2"
+docker = "27.3.1"
 ```
 
 Cada execução de `dev init <componente>` no mesmo projeto **acrescenta** uma entrada, permitindo combinações (`dev init python` seguido de `dev init docker`).
+
+**Por quê duas seções em vez de uma:** `components` diz **quais Providers consultar**; `dependencies` é o registro plano do que foi instalado e em qual versão, verificável uma a uma. Guardar só as dependências deixaria o `doctor` genérico — ele checaria presença de binário e nada mais, sem um Provider a quem perguntar por verificações que não são binários (`.venv` presente, toolchain default configurada). Guardar só os componentes, com uma versão cada, perderia a versão das ferramentas auxiliares: o componente `python` instala `python3` **e** `uv`, e são versões independentes.
 
 **Por quê um arquivo declarado em vez de detecção por heurística:** a alternativa seria farejar o diretório (`pyproject.toml` ⇒ Python, `Cargo.toml` ⇒ Rust). Heurística erra em monorepos, em projetos que usam uma linguagem sem o arquivo canônico, e não tem como descobrir decisões que não deixam rastro no disco. Como é o próprio `dev` quem cria o projeto, ele pode simplesmente **registrar** o que fez — informação exata em vez de inferida, e sem regra nova a cada componente suportado.
 

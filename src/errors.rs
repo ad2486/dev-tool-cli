@@ -1,5 +1,6 @@
 use crate::config::ConfigError;
 use crate::os::OsError;
+use crate::project::ProjectError;
 use crate::providers::ManifestError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,6 +35,8 @@ pub enum AppError {
     #[error(transparent)]
     Manifest(#[from] ManifestError),
     #[error(transparent)]
+    Project(#[from] ProjectError),
+    #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
 
@@ -43,6 +46,7 @@ impl ErrorCategory for AppError {
             Self::Config(error) => error.category(),
             Self::Os(error) => error.category(),
             Self::Manifest(error) => error.category(),
+            Self::Project(error) => error.category(),
             Self::Other(_) => Category::Internal,
         }
     }

@@ -3,6 +3,7 @@ mod config;
 mod core;
 mod errors;
 mod os;
+mod project;
 mod providers;
 
 use crate::{
