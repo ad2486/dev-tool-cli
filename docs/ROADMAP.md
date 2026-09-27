@@ -204,6 +204,8 @@ Implementar `dev config set`
 
 ## Epic 7 — Templates
 
+**Adiado para pós-MVP.** `uv init` e `cargo init` já geram o esqueleto do projeto; no lugar dos templates, o `init` aplica as preferências da config (`uv add --dev` com as ferramentas do Python, `cargo init --edition` no Rust). Ver "Toolchains do MVP" em ARCHITECTURE.md.
+
 ### DEV-060
 
 Criar empacotamento dos recursos dos Providers (templates, scripts e assets) embutidos no binário via `rust-embed` (ver "Recursos do Provider" em ARCHITECTURE.md)
@@ -242,7 +244,7 @@ Implementar `dev doctor` — entregue no milestone de vertical slice (após o Ep
 
 ### DEV-074
 
-Implementar `dev init <linguagem>` (usa os templates embutidos do Provider — ver Epic 7)
+Implementar `dev init <linguagem>` (usa `uv init`/`cargo init` e aplica as preferências da config — templates adiados, ver Epic 7)
 
 ### DEV-075
 

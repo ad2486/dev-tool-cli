@@ -1,11 +1,13 @@
 use super::manifest::{self, Manifest, ManifestError};
 use super::{
-    Check, InitOpts, InstallContext, Provider, Report, ensure, manifest_command, parse_version,
-    shell, status,
+    Check, InitOpts, InstallContext, Provider, Report, args, ensure, manifest_command,
+    parse_version, shell, status,
 };
 use crate::os::Command;
 use anyhow::Result;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+
+const DEV_TOOLS: [&str; 3] = ["formatter", "linter", "tester"];
 
 pub struct PythonProvider {
     manifest: Manifest,
@@ -75,10 +77,27 @@ impl Provider for PythonProvider {
             return Ok(());
         }
 
+        let dir = opts.dir.display().to_string();
         log::info!("initializing a Python project");
         ctx.command_runner.execute(&Command {
             program: "uv".to_string(),
-            args: vec!["init".to_string(), opts.dir.display().to_string()],
+            args: args(&["init", &dir]),
+        })?;
+
+        let tools: BTreeSet<&str> = DEV_TOOLS
+            .iter()
+            .filter_map(|key| ctx.config.get(*key).map(String::as_str))
+            .collect();
+        if tools.is_empty() {
+            return Ok(());
+        }
+
+        let mut add = vec!["add", "--project", &dir, "--dev"];
+        add.extend(tools);
+        log::info!("adding the development tools");
+        ctx.command_runner.execute(&Command {
+            program: "uv".to_string(),
+            args: args(&add),
         })?;
         Ok(())
     }
@@ -310,6 +329,28 @@ mod tests {
         assert_eq!(
             commands[0].args,
             vec!["init".to_string(), dir.display().to_string()]
+        );
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn init_adds_the_configured_tools_once_each() {
+        let provider = PythonProvider::new().unwrap();
+        let runner = Rc::new(RecordingRunner::new());
+        let mut ctx = context_with(FakeAdapter::with(&["uv"]), runner.clone());
+        ctx.config = HashMap::from([
+            ("formatter".to_string(), "black".to_string()),
+            ("linter".to_string(), "ruff".to_string()),
+            ("tester".to_string(), "pytest".to_string()),
+        ]);
+        let dir = temp_dir("init-tools");
+
+        provider.init(&ctx, &InitOpts { dir: dir.clone() }).unwrap();
+
+        assert_eq!(
+            runner.commands()[1].to_string(),
+            format!("uv add --project {} --dev black pytest ruff", dir.display())
         );
 
         std::fs::remove_dir_all(&dir).unwrap();

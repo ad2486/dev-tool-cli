@@ -146,7 +146,7 @@ RF-006 Validar instalação.
 
 RF-007 Possuir configurações do usuário.
 
-RF-008 Suportar templates (MVP: templates embutidos usados pelo `init`; pós-MVP: comando `dev template`).
+RF-008 Suportar templates — pós-MVP (templates embutidos e comando `dev template`). No MVP, o `init` usa o esqueleto do `uv init`/`cargo init` e aplica as preferências da config.
 
 RF-009 Arquitetura baseada em providers.
 

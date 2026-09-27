@@ -14,7 +14,7 @@ Instruções para agentes (e contribuidores) trabalharem neste repositório sem 
 
 - **Rust, edition 2024** (definido em `Cargo.toml`).
 - Dependências instaladas: `clap` (derive), `thiserror`, `anyhow`, `log` + `env_logger`, `toml`, `toml_edit` (escrita do config preservando comentários), `serde` (derive), `directories` (caminho idiomático do config por SO).
-- Dependências **planejadas**: `rust-embed` (recursos embutidos no binário, Epic 7); `miette` segue como alternativa ao `anyhow` na borda do CLI.
+- Dependências **planejadas**: `rust-embed` (recursos embutidos no binário, Epic 7 — adiado para pós-MVP); `miette` segue como alternativa ao `anyhow` na borda do CLI.
 
 ## Estrutura do projeto
 
@@ -41,7 +41,7 @@ Sem módulo `utils/` e sem camada `commands/` (o clap faz o dispatch; os handler
 
 - **Idioma:** toda a documentação é escrita em português (pt-BR). Código, identificadores e mensagens de commit seguem o padrão do repositório.
 - **Disciplina de escopo MVP:** implementar apenas `install`, `init`, `doctor` e `config get|set` (+ flags globais `--dry-run`, `--yes`/`-y`, `-v`/`-q`, `--config`). `uninstall`, `update`, `search` e `template` são pós-MVP — não implementar. Providers do MVP: Python e Rust. Adapters do MVP: Homebrew e apt.
-- **Arquitetura:** lógica de linguagem vive em Providers híbridos (struct Rust + `manifest.toml`); Providers nunca executam processos diretamente — toda execução passa pelo `CommandRunner`. O que varia por SO ou gerenciador de pacotes passa antes pelo `OsAdapter`; comandos idênticos em todos os sistemas (`uv init`, `cargo init`) vão direto ao Runner (ver "OS Adapter" em ARCHITECTURE.md). Recursos de Provider são embutidos no binário via `rust-embed`.
+- **Arquitetura:** lógica de linguagem vive em Providers híbridos (struct Rust + `manifest.toml`); Providers nunca executam processos diretamente — toda execução passa pelo `CommandRunner`. O que varia por SO ou gerenciador de pacotes passa antes pelo `OsAdapter`; comandos idênticos em todos os sistemas (`uv init`, `cargo init`) vão direto ao Runner (ver "OS Adapter" em ARCHITECTURE.md). Recursos de Provider (templates, pós-MVP) serão embutidos no binário via `rust-embed`.
 - **Decisões de design:** `docs/ARCHITECTURE.md` é a **fonte de verdade**. Qualquer decisão arquitetural nova (ou mudança de decisão existente) deve ser registrada lá **com a justificativa (o porquê)**, seguindo o padrão das seções "Por quê" já existentes.
 
 ## Testes

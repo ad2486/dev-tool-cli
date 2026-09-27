@@ -235,6 +235,8 @@ trait Provider {
 
 ## Recursos do Provider (embutidos no binário)
 
+> **Pós-MVP.** No MVP o Provider não tem templates, scripts nem assets: o esqueleto do projeto vem do `uv init`/`cargo init`, e o `init` aplica por cima as preferências da config (ver "Init aplica a config"). O desenho abaixo vale quando houver mais de um tipo de projeto por linguagem.
+
 Cada Provider possui um pacote próprio de recursos:
 
 ```
@@ -347,6 +349,10 @@ Exemplos:
 Python e Rust são instalados pelos gerenciadores de toolchain da própria linguagem, via script oficial, em todos os sistemas: o `uv` (e o Python por `uv python install`) e o `rustup` (com `-y`, que já instala a toolchain `stable`). Se o `rustup` existe mas não há toolchain ativa, o Provider roda `rustup default stable`.
 
 **Por quê script e não o gerenciador de pacotes:** sem `sudo`, com versão atual e um caminho só para macOS e Linux. O `rustc` do apt costuma ficar versões atrás — antigo demais para a edition 2024. Consequência aceita: nenhum Provider do MVP usa o `OsAdapter`; ele espera o Provider de Docker.
+
+**Init aplica a config.** Depois do `uv init`, o Python roda `uv add --dev` com o `formatter`, o `linter` e o `tester` efetivos, sem repetir (a config padrão vira `uv add --dev ruff pytest`). O Rust passa a `edition` para o `cargo init --edition`.
+
+**Por quê isso no lugar de templates no MVP:** `uv init` e `cargo init` já geram o esqueleto (manifesto do projeto, código inicial, `.gitignore`, `git init`); um template nosso por cima acrescentaria pouco, ao custo de uma dependência (`rust-embed`) e de arquivos para manter. Já as preferências do `config.toml` não tinham consumidor: o `dev config set` gravava valores que nada lia. Aplicá-las no `init` fecha o ciclo config → projeto. Templates voltam quando houver mais de um tipo de projeto (api, cli, library), junto do `dev template`.
 
 **Por quê perguntar ao gerenciador e não ao PATH:** o PATH mente. O macOS e o Homebrew trazem um `python3` próprio, e uma máquina pode ter dois `rustc` (o do rustup e o do Homebrew). Por isso "está instalado?" é `uv python list --managed-python --only-installed` e `rustup show active-toolchain`; as versões vêm de `uv python find --managed-python` e `rustup run <toolchain> rustc --version`; e o `cargo init` roda por `rustup run <toolchain>`. `install`, `doctor` e `versions` fazem a mesma pergunta, então nunca discordam entre si.
 

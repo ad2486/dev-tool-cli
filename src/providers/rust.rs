@@ -84,11 +84,16 @@ impl Provider for RustProvider {
         let toolchain = self
             .active_toolchain(ctx)?
             .unwrap_or_else(|| "stable".to_string());
+        let dir = opts.dir.display().to_string();
+        let mut words = vec!["cargo", "init"];
+        if let Some(edition) = ctx.config.get("edition") {
+            words.extend(["--edition", edition]);
+        }
+        words.push(&dir);
+
         log::info!("initializing a Rust project");
-        ctx.command_runner.execute(&Self::rustup_run(
-            &toolchain,
-            &["cargo", "init", &opts.dir.display().to_string()],
-        ))?;
+        ctx.command_runner
+            .execute(&Self::rustup_run(&toolchain, &words))?;
         Ok(())
     }
 
@@ -259,7 +264,8 @@ mod tests {
         let provider = RustProvider::new().unwrap();
         let runner = Rc::new(RecordingRunner::new());
         runner.push_response(stable());
-        let ctx = context(&["rustup"], runner.clone());
+        let mut ctx = context(&["rustup"], runner.clone());
+        ctx.config = HashMap::from([("edition".to_string(), "2021".to_string())]);
         let dir = std::env::temp_dir().join(format!("dev-rust-init-{}", std::process::id()));
 
         provider.init(&ctx, &InitOpts { dir: dir.clone() }).unwrap();
@@ -267,7 +273,7 @@ mod tests {
         assert_eq!(
             command_lines(&runner).last().unwrap(),
             &format!(
-                "rustup run stable-aarch64-apple-darwin cargo init {}",
+                "rustup run stable-aarch64-apple-darwin cargo init --edition 2021 {}",
                 dir.display()
             )
         );
