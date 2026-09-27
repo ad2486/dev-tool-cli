@@ -47,7 +47,8 @@ Sem módulo `utils/` e sem camada `commands/` (o clap faz o dispatch; os handler
 ## Testes
 
 - Cada epic do ROADMAP inclui suas próprias tarefas de teste — testes são entregues junto da feature, não em uma fase separada.
-- O crate é só binário (sem `[lib]`), então um diretório `tests/` de integração não enxerga o código de `src/`: todo teste é **unitário, inline** no arquivo que testa, em `#[cfg(test)] mod tests { use super::*; }`.
+- O crate é só binário (sem `[lib]`), então um diretório `tests/` não enxerga o código de `src/`: teste de função é **unitário, inline** no arquivo que testa, em `#[cfg(test)] mod tests { use super::*; }`.
+- **Testes de integração** (`tests/cli.rs`) executam o binário compilado (`env!("CARGO_BIN_EXE_dev")`) numa pasta temporária, sempre com `--config` apontando para um arquivo do sandbox — nunca a config real do usuário. Cobrem só o que não modifica o sistema: códigos de saída, mensagens, `dev config` e `--dry-run`.
 - Testes unitários usam **fakes das traits** (`Provider`, `OsAdapter`, `CommandRunner`).
 - Adapters são testados com o **`RecordingRunner`**, que grava a sequência de comandos (`commands()`) e devolve respostas programadas (`push_response()`; fila vazia → sucesso com código 0).
 - **Exceção ao uso de fakes:** smoke tests que só *leem* o sistema (ex.: o lookup de binário no PATH) podem usar o `RealRunner`, marcados com `#[cfg(unix)]` — são o único jeito de provar que um comando montado de fato funciona, o que o fake de gravação não prova. Nunca um teste que modifica o sistema.

@@ -304,7 +304,7 @@ Gerar binários Linux
 
 ### DEV-092
 
-Gerar binários Windows
+Gerar binários Windows — pós-MVP (os adapters do MVP são Homebrew e apt; no Windows o `dev` não encontraria gerenciador de pacotes)
 
 ### DEV-093
 

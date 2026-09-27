@@ -455,6 +455,8 @@ Modos de operação:
 
 **Por quê o `capture` roda de verdade no dry-run:** `--dry-run` significa "não modifique o sistema", não "não leia o sistema". Como todo comando idempotente checa o estado antes de agir (ver Idempotência), deixar as checagens rodarem é o que permite ao dry-run responder "python 3.12 já instalado, pularia" em vez de chutar. Falsificar um `Output` vazio faria o Provider decidir com base em dado inventado, e a previsão mentiria.
 
+**Programa inexistente no dry-run responde 127.** Numa máquina limpa, o dry-run "instala" o `rustup` só no log e em seguida pergunta ao `rustup` qual toolchain está ativa — e o programa não existe. O `capture` do runner de dry-run converte esse "não encontrado" em um `Output` com código 127 (a convenção do shell para *command not found*), que o Provider já lê como "não instalado"; a previsão segue até o fim. No runner real continua sendo erro: ali, um programa ausente logo depois de instalado significa que o instalador falhou.
+
 **Consequência — regra a respeitar nos Providers:** `capture` só recebe comandos sem efeito colateral (`python --version`, `brew list`); qualquer comando que modifica o sistema vai por `execute`. O compilador não impõe isso; os testes de Provider (com o runner de recording) é que verificam qual comando foi parar em cada método.
 
 **Simulação nativa nos adapters:** em dry-run, os adapters trocam o comando de instalação pelo modo de simulação nativo do gerenciador (`brew install -n`, `apt-get -s`), que resolve dependências de verdade e valida se o pacote existe. Isso é conhecimento específico de gerenciador, então vive no `OsAdapter`, não no runner — e é aditivo: ferramentas sem equivalente (`rustup`, `uv`) continuam caindo no log-and-skip acima.

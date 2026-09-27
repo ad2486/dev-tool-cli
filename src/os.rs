@@ -58,7 +58,7 @@ pub enum OsError {
     },
     #[error("Command `{command}` was killed by a signal")]
     CommandKilled { command: String },
-    #[error("No supported package manager found (looked for{SUPPORTED_PACKAGE_MANAGERS})")]
+    #[error("No supported package manager found (looked for {SUPPORTED_PACKAGE_MANAGERS})")]
     NoPackageManager,
 }
 
@@ -222,7 +222,18 @@ impl CommandRunner for DryRunRunner {
     }
 
     fn capture(&self, cmd: &Command) -> Result<Output, OsError> {
-        self.real.capture(cmd)
+        match self.real.capture(cmd) {
+            Err(OsError::ExecutionFailed { source, .. })
+                if source.kind() == std::io::ErrorKind::NotFound =>
+            {
+                Ok(Output {
+                    code: 127,
+                    stdout: String::new(),
+                    stderr: String::new(),
+                })
+            }
+            result => result,
+        }
     }
 }
 
@@ -447,6 +458,17 @@ mod tests {
             PathBuf::from("/home/x/.local/bin")
         );
         assert_eq!(expand_home("/opt/bin", home), PathBuf::from("/opt/bin"));
+    }
+
+    #[test]
+    fn dry_run_answers_a_missing_program_as_not_found() {
+        let command = Command {
+            program: "dev-no-such-program".to_string(),
+            args: vec![],
+        };
+
+        assert_eq!(DryRunRunner::default().capture(&command).unwrap().code, 127);
+        assert!(RealRunner::default().capture(&command).is_err());
     }
 
     #[test]
