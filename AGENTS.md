@@ -8,7 +8,7 @@ Instruções para agentes (e contribuidores) trabalharem neste repositório sem 
 
 ## Status atual
 
-**Em implementação — Epic 3 (Sistema Operacional).** Concluídos: Epic 1 (fundação: CLI, logging, erros, config), Epic 2 (Registry, trait `Provider`, loader de manifest, resolução da config efetiva, `InstallContext`) e, no Epic 3, o `CommandRunner` (DEV-020), a trait `OsAdapter` (DEV-028) e o adapter Homebrew (DEV-023). O ROADMAP marca o que falta; nenhum comando ainda funciona de ponta a ponta — o primeiro será o `dev doctor` (milestone de vertical slice, após o Epic 3).
+**MVP completo, preparando a v0.1.0.** Todos os comandos do MVP funcionam para Python e Rust em macOS e Linux, cobertos por testes unitários, de integração (`tests/cli.rs`) e E2E no CI. A distribuição existe (`release.yml` + `install.sh`); falta publicar a primeira tag. Templates (Epic 7) foram adiados para o pós-MVP. A documentação de usuário está em `README.md` e `docs/languages/` (inglês principal, par `.pt-BR.md`); ao mudar o comportamento de um Provider, atualize a página da linguagem nos dois idiomas.
 
 ## Stack técnica
 
