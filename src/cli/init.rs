@@ -1,6 +1,6 @@
 use crate::config::{self, ConfigTable};
 use crate::core::Registry;
-use crate::errors::{AppError, CliError};
+use crate::errors::AppError;
 use crate::os::{CommandRunner, OsAdapter};
 use crate::project::{self, Project, ProjectError};
 use crate::providers::{InitOpts, InstallContext};
@@ -15,15 +15,7 @@ pub fn run(
     language: &str,
     dry_run: bool,
 ) -> Result<(), AppError> {
-    let provider = registry.get(language).ok_or_else(|| {
-        let known = registry
-            .all()
-            .iter()
-            .map(|provider| provider.name())
-            .collect::<Vec<_>>()
-            .join(", ");
-        CliError::UnknownLanguage(language.to_string(), known)
-    })?;
+    let provider = registry.find(language)?;
 
     let defaults = provider.manifest().tools.clone();
     let resolved = config::resolve(config, provider.name(), &defaults)?;

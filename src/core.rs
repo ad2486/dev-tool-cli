@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use crate::errors::CliError;
 use crate::providers::Provider;
 
 pub struct Registry {
@@ -20,6 +21,18 @@ impl Registry {
 
     pub fn get(&self, name: &str) -> Option<&dyn Provider> {
         self.providers.get(name).map(|provider| provider.as_ref())
+    }
+
+    pub fn find(&self, language: &str) -> Result<&dyn Provider, CliError> {
+        self.get(language).ok_or_else(|| {
+            let known = self
+                .providers
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ");
+            CliError::UnknownLanguage(language.to_string(), known)
+        })
     }
 
     pub fn all(&self) -> Vec<&dyn Provider> {

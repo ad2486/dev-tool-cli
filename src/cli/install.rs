@@ -1,6 +1,6 @@
 use crate::config::{self, ConfigTable};
 use crate::core::Registry;
-use crate::errors::{AppError, CliError};
+use crate::errors::AppError;
 use crate::os::{CommandRunner, OsAdapter};
 use crate::providers::InstallContext;
 use std::rc::Rc;
@@ -12,15 +12,7 @@ pub fn run(
     command_runner: Rc<dyn CommandRunner>,
     language: &str,
 ) -> Result<(), AppError> {
-    let provider = registry.get(language).ok_or_else(|| {
-        let known = registry
-            .all()
-            .iter()
-            .map(|provider| provider.name())
-            .collect::<Vec<_>>()
-            .join(", ");
-        CliError::UnknownLanguage(language.to_string(), known)
-    })?;
+    let provider = registry.find(language)?;
 
     let defaults = provider.manifest().tools.clone();
     let resolved = config::resolve(config, provider.name(), &defaults)?;

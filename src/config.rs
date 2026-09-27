@@ -6,8 +6,8 @@ pub type ConfigTable = toml::Table;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ConfigError {
-    #[error("Invalid config.toml file")]
-    Invalid(toml::de::Error),
+    #[error("Invalid config.toml file: {0}")]
+    Invalid(String),
     #[error("Couldn't read the config.toml file")]
     Io(std::io::Error),
     #[error("Could not determine the system config directory")]
@@ -16,6 +16,8 @@ pub enum ConfigError {
     InvalidValue(String),
     #[error("Unknown key: {0}")]
     UnknownKey(String),
+    #[error("Invalid key `{0}`, expected <language>.<key> (e.g. python.formatter)")]
+    MalformedKey(String),
 }
 
 impl ErrorCategory for ConfigError {
@@ -26,6 +28,7 @@ impl ErrorCategory for ConfigError {
             Self::NoConfigDir => Category::Environment,
             Self::InvalidValue(_) => Category::User,
             Self::UnknownKey(_) => Category::User,
+            Self::MalformedKey(_) => Category::User,
         }
     }
 }
@@ -38,12 +41,29 @@ pub fn default_path() -> Result<PathBuf, ConfigError> {
 }
 
 pub fn load(path: &Path) -> Result<ConfigTable, ConfigError> {
-    let content = match std::fs::read_to_string(path) {
-        Ok(content) => content,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(ConfigTable::new()),
-        Err(error) => return Err(ConfigError::Io(error)),
-    };
-    content.parse::<ConfigTable>().map_err(ConfigError::Invalid)
+    read(path)?
+        .parse::<ConfigTable>()
+        .map_err(|error| ConfigError::Invalid(error.to_string()))
+}
+
+pub fn set(path: &Path, section: &str, key: &str, value: &str) -> Result<(), ConfigError> {
+    let mut document = read(path)?
+        .parse::<toml_edit::DocumentMut>()
+        .map_err(|error| ConfigError::Invalid(error.to_string()))?;
+    document.entry(section).or_insert(toml_edit::table())[key] = toml_edit::value(value);
+
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(ConfigError::Io)?;
+    }
+    std::fs::write(path, document.to_string()).map_err(ConfigError::Io)
+}
+
+fn read(path: &Path) -> Result<String, ConfigError> {
+    match std::fs::read_to_string(path) {
+        Ok(content) => Ok(content),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(error) => Err(ConfigError::Io(error)),
+    }
 }
 
 pub fn resolve(
@@ -103,5 +123,43 @@ mod tests {
         let result = resolve(&config, "python", &defaults);
 
         assert!(matches!(result, Err(ConfigError::UnknownKey(_))));
+    }
+
+    fn temp_path(name: &str) -> PathBuf {
+        std::env::temp_dir()
+            .join(format!("dev-config-{name}-{}", std::process::id()))
+            .join("config.toml")
+    }
+
+    #[test]
+    fn set_creates_the_file_and_its_directory() {
+        let path = temp_path("create");
+
+        set(&path, "python", "formatter", "black").unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "[python]\nformatter = \"black\"\n"
+        );
+        std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn set_keeps_the_rest_of_the_file_untouched() {
+        let path = temp_path("preserve");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            "# my settings\n[python]\nformatter = \"ruff\" # fast\nlinter = \"ruff\"\n",
+        )
+        .unwrap();
+
+        set(&path, "python", "linter", "flake8").unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "# my settings\n[python]\nformatter = \"ruff\" # fast\nlinter = \"flake8\"\n"
+        );
+        std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
     }
 }

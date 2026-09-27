@@ -117,6 +117,16 @@ Esse arquivo contém apenas preferências do usuário e nunca modifica os Provid
 
 **Por quê:** config silenciosamente ignorada (um typo que "passa" mas não tem efeito) é uma das falhas mais frustrantes em CLIs; falhar rápido torna o erro óbvio. Manter os defaults no manifest, e não na config, permite evoluir Providers sem exigir migração das configs existentes.
 
+## `dev config get|set`
+
+A chave é `<linguagem>.<chave>` (`python.formatter`), como no `git config`. O `get` mostra o **valor efetivo** — o da config ou, na falta dele, o default do manifest, marcado com `(default)`; sem chave, lista todos. O `set` valida a chave contra o `[tools]` do manifest antes de gravar: linguagem ou chave desconhecida é erro de usuário (código 2) e o arquivo não é tocado. `--dry-run` não grava.
+
+**Por quê o valor efetivo:** a pergunta que o usuário faz é "o que o `dev` vai usar?". Mostrar só o arquivo deixaria em branco toda chave que ele nunca definiu, justamente as que mais geram dúvida.
+
+**Por quê `toml_edit` na escrita:** o crate `toml` desserializa para uma estrutura e, ao regravar, descarta comentários, ordem e formatação. O `config.toml` é um arquivo do usuário; um comando que altera uma chave não pode apagar o que ele escreveu no resto. O `toml_edit` edita só a chave. A leitura continua com `toml`.
+
+**Por quê `dev config` não detecta o gerenciador de pacotes:** runner e adapter só são montados pelos comandos que executam processos. Ler e gravar a config numa máquina sem brew nem apt não tem por que falhar.
+
 ---
 
 # Estado do Projeto (`dev.toml`)

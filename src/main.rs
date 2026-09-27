@@ -7,10 +7,10 @@ mod project;
 mod providers;
 
 use crate::{
-    cli::{Cli, Commands},
+    cli::{Cli, Commands, ConfigAction},
     core::Registry,
     errors::{AppError, ErrorCategory},
-    os::{CommandRunner, DryRunRunner, RealRunner},
+    os::{CommandRunner, DryRunRunner, OsAdapter, RealRunner},
     providers::{python::PythonProvider, rust::RustProvider},
 };
 use clap::Parser;
@@ -51,31 +51,39 @@ fn run(cli: Cli) -> Result<(), AppError> {
     registry.register(Box::new(PythonProvider::new()?));
     registry.register(Box::new(RustProvider::new()?));
 
-    let real_runner = RealRunner::with_path(tool_bin_dirs(&registry));
-    let command_runner: Rc<dyn CommandRunner> = if cli.dry_run {
+    match cli.command {
+        Commands::Doctor => {
+            let (runner, adapter) = system(&registry, cli.dry_run)?;
+            cli::doctor::run(&registry, &config, adapter, runner)
+        }
+        Commands::Install { ref language } => {
+            let (runner, adapter) = system(&registry, cli.dry_run)?;
+            cli::install::run(&registry, &config, adapter, runner, language)
+        }
+        Commands::Init { ref language } => {
+            let (runner, adapter) = system(&registry, cli.dry_run)?;
+            cli::init::run(&registry, &config, adapter, runner, language, cli.dry_run)
+        }
+        Commands::Config {
+            action: ConfigAction::Get { ref key },
+        } => cli::config::get(&registry, &config, key.as_deref()),
+        Commands::Config {
+            action: ConfigAction::Set { ref key, ref value },
+        } => cli::config::set(&registry, &path, key, value, cli.dry_run),
+    }
+}
+
+type System = (Rc<dyn CommandRunner>, Rc<dyn OsAdapter>);
+
+fn system(registry: &Registry, dry_run: bool) -> Result<System, AppError> {
+    let real_runner = RealRunner::with_path(tool_bin_dirs(registry));
+    let command_runner: Rc<dyn CommandRunner> = if dry_run {
         Rc::new(DryRunRunner::new(real_runner))
     } else {
         Rc::new(real_runner)
     };
-    let os_adapter = os::detect_adapter(command_runner.clone(), cli.dry_run)?;
-
-    match cli.command {
-        Commands::Doctor => cli::doctor::run(&registry, &config, os_adapter, command_runner),
-        Commands::Install { ref language } => {
-            cli::install::run(&registry, &config, os_adapter, command_runner, language)
-        }
-        Commands::Init { ref language } => cli::init::run(
-            &registry,
-            &config,
-            os_adapter,
-            command_runner,
-            language,
-            cli.dry_run,
-        ),
-        Commands::Config { .. } => {
-            Err(anyhow::anyhow!("`dev config` is not implemented yet").into())
-        }
-    }
+    let os_adapter = os::detect_adapter(command_runner.clone(), dry_run)?;
+    Ok((command_runner, os_adapter))
 }
 
 fn tool_bin_dirs(registry: &Registry) -> Vec<PathBuf> {

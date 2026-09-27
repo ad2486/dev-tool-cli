@@ -13,7 +13,7 @@ Instruções para agentes (e contribuidores) trabalharem neste repositório sem 
 ## Stack técnica
 
 - **Rust, edition 2024** (definido em `Cargo.toml`).
-- Dependências instaladas: `clap` (derive), `thiserror`, `anyhow`, `log` + `env_logger`, `toml`, `serde` (derive), `directories` (caminho idiomático do config por SO).
+- Dependências instaladas: `clap` (derive), `thiserror`, `anyhow`, `log` + `env_logger`, `toml`, `toml_edit` (escrita do config preservando comentários), `serde` (derive), `directories` (caminho idiomático do config por SO).
 - Dependências **planejadas**: `rust-embed` (recursos embutidos no binário, Epic 7); `miette` segue como alternativa ao `anyhow` na borda do CLI.
 
 ## Estrutura do projeto
