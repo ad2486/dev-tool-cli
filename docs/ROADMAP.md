@@ -288,7 +288,9 @@ Testes de integração
 
 ### DEV-084
 
-Testes end-to-end
+Testes end-to-end — no CI (job `e2e`), em runners descartáveis Ubuntu e macOS, uma instalação real por linguagem verificada pelo próprio `dev doctor`.
+
+**Por quê no CI e não no `cargo test`:** um E2E de verdade instala toolchains, o que modificaria a máquina de quem roda os testes. O runner do GitHub é criado para a execução e apagado depois, então é o único lugar onde a instalação do zero pode rodar a cada push sem risco.
 
 ---
 
