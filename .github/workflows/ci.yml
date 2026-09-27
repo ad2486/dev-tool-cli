@@ -17,3 +17,28 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --all-targets
       - run: cargo test
+
+  e2e:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        language: [python, rust]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo build
+      - run: cp target/debug/dev "$RUNNER_TEMP/dev"
+      - name: Remove the preinstalled Rust
+        if: matrix.language == 'rust'
+        run: rustup self uninstall -y
+      - name: dev init + dev doctor
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir project && cd project
+          "$RUNNER_TEMP/dev" init ${{ matrix.language }}
+          "$RUNNER_TEMP/dev" doctor > doctor.txt
+          cat doctor.txt
+          test -f dev.toml
+          if grep -Eq "missing|project uses" doctor.txt; then exit 1; fi
