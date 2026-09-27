@@ -53,7 +53,16 @@ pub enum AppError {
     #[error(transparent)]
     Project(#[from] ProjectError),
     #[error(transparent)]
-    Other(#[from] anyhow::Error),
+    Other(anyhow::Error),
+}
+
+impl From<anyhow::Error> for AppError {
+    fn from(error: anyhow::Error) -> Self {
+        match error.downcast::<OsError>() {
+            Ok(error) => Self::Os(error),
+            Err(error) => Self::Other(error),
+        }
+    }
 }
 
 impl ErrorCategory for AppError {
@@ -66,5 +75,28 @@ impl ErrorCategory for AppError {
             Self::Project(error) => error.category(),
             Self::Other(_) => Category::Internal,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_failed_tool_inside_a_provider_keeps_its_exit_code() {
+        let error: anyhow::Error = OsError::CommandFailed {
+            command: "sh -c curl".to_string(),
+            code: 1,
+        }
+        .into();
+
+        assert_eq!(AppError::from(error).category().exit_code(), 4);
+    }
+
+    #[test]
+    fn any_other_provider_error_is_internal() {
+        let error = anyhow::anyhow!("manifest is missing the `install_uv` command");
+
+        assert_eq!(AppError::from(error).category().exit_code(), 70);
     }
 }

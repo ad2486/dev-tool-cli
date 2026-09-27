@@ -518,6 +518,8 @@ Na borda, um enum `AppError` agrega os erros tipados dos módulos com `#[from]`,
 
 **Por quê um enum de borda em vez de tentar `downcast` no `main`:** com `#[from]`, propagar um erro de módulo novo **não compila** até que ele ganhe uma variante, e a variante não compila até receber uma categoria. Uma cadeia de `downcast` no `main` depende de alguém lembrar de estendê-la; quem esquecer não vê erro nenhum — o caso simplesmente cai no genérico e o programa passa a sair com o código errado, em silêncio. A variante `Other` (erros `anyhow`) mapeia para interno: um erro que ninguém classificou é, por definição, um descuido do `dev`.
 
+**Exceção — o `OsError` que atravessa um Provider:** a trait `Provider` devolve `anyhow::Result`, então uma ferramenta que falha dentro de um Provider (o script do uv saindo com erro) chegava ao `main` como `Other` e saía com 70, "bug no `dev`", em vez de 4. A conversão `anyhow::Error → AppError` tenta um único `downcast` para `OsError` antes de cair em `Other`. É o único ponto em que um erro tipado vira `anyhow` no caminho, e por isso o único `downcast` necessário.
+
 **`dev doctor` sai com 0 mesmo encontrando problemas.** O comando existe para relatar; se ele conseguiu relatar, ele teve sucesso, e o estado do ambiente é o **conteúdo** da resposta, não o sucesso dela. Código diferente de zero fica reservado para o diagnóstico em si falhar — nenhum gerenciador de pacotes encontrado, config inválida, verificação que não pôde ser executada.
 
 ## Idempotência
@@ -576,6 +578,20 @@ Package Manager / Sistema Operacional
 * Comandos idempotentes
 * Multiplataforma
 * Open/Closed Principle (OCP)
+
+---
+
+# Distribuição
+
+Uma tag `v*` dispara `.github/workflows/release.yml`, que compila quatro binários (macOS arm64/x86_64, Linux x86_64/arm64) e os anexa a uma GitHub Release, cada um com seu `.sha256`. O `install.sh` na raiz detecta sistema e processador, baixa o arquivo certo, confere o hash e instala em `~/.local/bin`.
+
+**Por quê Linux com musl:** um binário ligado à glibc só roda em sistemas com glibc igual ou mais nova que a da máquina que compilou — compilado no Ubuntu do runner, falharia em Debian e Ubuntu mais antigos. Com musl a libc vai embutida e o binário roda em qualquer Linux. Só é simples porque nenhuma dependência usa bibliotecas C.
+
+**Por quê a Release nasce como rascunho:** o instalador baixa sempre da Release mais recente. Publicada antes de todos os binários subirem, ela deixaria uma janela em que a instalação falha; como rascunho, uma build quebrada fica invisível e nada muda para quem instala.
+
+**Por quê a tag precisa bater com o `Cargo.toml`:** o `dev --version` vem do `Cargo.toml`. Sem a checagem, esquecer de subir a versão publicaria um binário `v0.2.0` que se anuncia como `0.1.0`.
+
+**Por quê o instalador não usa sudo nem edita o shell:** `~/.local/bin` segue a mesma lógica das toolchains (uv, rustup) — instalar sem privilégio. Se a pasta não está no PATH, o script avisa em vez de alterar `.zshrc`/`.bashrc`, que são configuração pessoal do usuário.
 
 ---
 
