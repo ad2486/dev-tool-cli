@@ -13,7 +13,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: cargo fmt --check
       - run: cargo clippy --all-targets
       - run: cargo test
@@ -27,12 +27,18 @@ jobs:
         language: [python, rust]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: cargo build
       - run: cp target/debug/dev "$RUNNER_TEMP/dev"
       - name: Remove the preinstalled Rust
         if: matrix.language == 'rust'
-        run: rustup self uninstall -y
+        run: |
+          if command -v brew && brew list rustup; then
+            brew uninstall rustup
+            rm -rf ~/.rustup ~/.cargo
+          else
+            rustup self uninstall -y
+          fi
       - name: dev init + dev doctor
         working-directory: ${{ runner.temp }}
         run: |
